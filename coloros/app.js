@@ -189,10 +189,162 @@ var TOOLBAR = [
   };
 })();
 
-/* ---------- 启动 ---------- */
+/* ---------- 分享（仿 ColorOS 分享面板：链接 / 文字 / 图片） ---------- */
+function shareNote() {
+  /* 先把未落盘的编辑写回去 */
+  var r = state.current; if (!r) return;
+  r.title = $('titleInput').value.trim();
+  r.raw_text = state.editor.getHTML();
+  r.color = state.editor.getColor();
+  r.text = NDB.toText(r.raw_text);
+  NDB.Notes.update(r).then(function () {
+    $('shareSheet').hidden = false;
+    $('shLinkBox').hidden = true; $('shPwRow').hidden = true; $('shPwInput').value = '';
+  });
+}
+$('shareBtn').onclick = shareNote;
+$('shCancel').onclick = $('shareMask').onclick = function () { $('shareSheet').hidden = true; };
+
+function shareLink(pw) {
+  var r = state.current;
+  var payload = { v: 1, title: r.title || '', html: r.raw_text || ('<p>' + esc(r.text) + '</p>'), ts: r.update_time };
+  var base = location.href.split('#')[0];
+  var p = pw ? NF.encodeEncrypted(payload, pw) : NF.encode(payload);
+  p.then(function (enc) {
+    var link = base + '#' + enc;
+    $('shLinkBox').hidden = false;
+    $('shLinkBox').textContent = link;
+    copyText(link);
+    var kb = (link.length / 1024).toFixed(1);
+    toast('链接已复制（' + kb + ' KB）' + (pw ? ' · 需密码查看' : ''));
+    if (link.length > 60000) toast('链接超 60KB，微信可能截断');
+  })['catch'](function (e) { toast('生成失败：' + e.message); });
+}
+$('shLink').onclick = function () { $('shPwRow').hidden = false; $('shPwInput').focus(); };
+$('shPwGo').onclick = function () {
+  var pw = $('shPwInput').value.trim();
+  if (pw.length > 0 && pw.length < 4) { toast('密码至少 4 位'); return; }
+  shareLink(pw || null);
+};
+$('shText').onclick = function () {
+  var r = state.current;
+  copyText((r.title ? r.title + '\n\n' : '') + (r.text || ''));
+  $('shareSheet').hidden = true;
+};
+
+/* 以图片形式分享：Canvas 绘制便签卡片（纸色底 + 标题 + 正文折行），下载 PNG */
+$('shPic').onclick = function () {
+  var r = state.current;
+  var W = 1080, PAD = 72, lh = 56;
+  var bg = NED.COLORS[r.color] || NED.COLORS.paper;
+  var dark = r.color === 'dark';
+  var body = r.text || '';
+  var cv = document.createElement('canvas');
+  var ctx = cv.getContext('2d');
+  var font = '34px -apple-system,"PingFang SC","Microsoft YaHei",sans-serif';
+  var tfont = 'bold 52px -apple-system,"PingFang SC","Microsoft YaHei",sans-serif';
+  function wrap(text, maxW, f) {
+    ctx.font = f;
+    var lines = [];
+    text.split('\n').forEach(function (para) {
+      var cur = '';
+      for (var i = 0; i < para.length; i++) {
+        var t = cur + para[i];
+        if (ctx.measureText(t).width > maxW && cur) { lines.push(cur); cur = para[i]; }
+        else cur = t;
+      }
+      lines.push(cur);
+    });
+    return lines;
+  }
+  var titleLines = r.title ? wrap(r.title, W - PAD * 2, tfont) : [];
+  var bodyLines = wrap(body, W - PAD * 2, font);
+  var H = PAD + titleLines.length * 68 + (titleLines.length ? 28 : 0) + bodyLines.length * lh + PAD + 40;
+  cv.width = W; cv.height = Math.max(H, 400);
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, cv.height);
+  ctx.fillStyle = dark ? '#e6e2da' : '#242220';
+  var y = PAD;
+  ctx.font = tfont;
+  titleLines.forEach(function (l) { ctx.fillText(l, PAD, y); y += 68; });
+  if (titleLines.length) y += 28;
+  ctx.font = font;
+  bodyLines.forEach(function (l) { ctx.fillText(l, PAD, y); y += lh; });
+  ctx.fillStyle = dark ? '#8a8781' : '#98938a';
+  ctx.font = '26px sans-serif';
+  ctx.fillText(fmt(r.update_time) + ' · 便签', PAD, cv.height - PAD + 18);
+  var a = document.createElement('a');
+  a.href = cv.toDataURL('image/png');
+  a.download = (r.title || '便签').slice(0, 20) + '.png';
+  a.click();
+  $('shareSheet').hidden = true;
+  toast('图片已保存');
+};
+
+function copyText(t) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(t).then(function () { toast('已复制，去粘贴吧'); }, function () { fallbackCopy(t); });
+  } else fallbackCopy(t);
+}
+function fallbackCopy(t) {
+  var ta = document.createElement('textarea'); ta.value = t;
+  ta.style.cssText = 'position:fixed;left:-9999px';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); toast('已复制'); } catch (e) { toast('请长按文字手动复制'); }
+  document.body.removeChild(ta);
+}
+
+/* ---------- 链接阅读模式：打开带 # 的分享链接时只读展示 ---------- */
 state.editor = new NED.Editor($('editor'), function () {
   clearTimeout(state.saveTm);
   state.saveTm = setTimeout(function () { saveCurrent(true); }, 800);
 });
-NDB.Folders.ensure().then(function () { show('list'); });
+var readBuf = null;
+async function openShared(html, title, ts, pw) {
+  window.__sharedNote = { title: title, html: html, ts: ts };
+  $('listView').hidden = true; $('editView').hidden = true; $('fab').hidden = true;
+  $('readView').hidden = false;
+  $('readTitle').textContent = title || '';
+  $('readMeta').textContent = (ts ? fmt(ts) + ' · 来自分享' : '来自分享');
+  $('readPaper').innerHTML = NF.sanitize(html || '');
+  document.title = (title || '便签') + ' · 来自分享';
+  $('readSaveBtn').hidden = false;
+  if (pw) { $('readPwBtn').hidden = false; }
+}
+$('readPwBtn').onclick = function () {
+  var pw = prompt('输入这篇便签的查看密码');
+  if (!pw) return;
+  NF.decodeEncrypted(readBuf, pw).then(function (n) { openShared(n.html, n.title, n.ts); })
+    .catch(function (e) { alert(e.message || '密码错误'); });
+};
+$('readSaveBtn').onclick = async function () {
+  var n = window.__sharedNote;
+  await NDB.Notes.create({ title: n.title, raw_text: NF.sanitize(n.html) });
+  location.hash = ''; location.reload();
+};
+$('readCopyBtn').onclick = function () { copyText(location.href); };
+
+(async function boot() {
+  var h = decodeURIComponent(location.hash.slice(1));
+  if (h.length > 6) {
+    try {
+      var data = await NF.decode(h);
+      if (data && data.__enc) {
+        readBuf = data.__enc;
+        $('listView').hidden = true; $('editView').hidden = true; $('fab').hidden = true;
+        $('readView').hidden = false;
+        $('readTitle').textContent = '🔒 这篇便签已加密';
+        $('readMeta').textContent = '需要作者提供的查看密码';
+        $('readPaper').innerHTML = '<p style="opacity:.6">点击下方按钮输入密码解锁</p>';
+        $('readPwBtn').hidden = false; $('readSaveBtn').hidden = true;
+        return;
+      }
+      window.__sharedNote = data;
+      await openShared(data.html, data.title, data.ts, h.indexOf('2.') === 0);
+    } catch (e) { alert('打开失败：' + e.message); }
+    return;
+  }
+  NDB.Folders.ensure().then(function () { show('list'); });
+})();
+/* 同页粘贴新分享链接时只触发 hashchange 不重载 → 手动刷新进阅读态 */
+window.addEventListener('hashchange', function () { location.reload(); });
 })();
