@@ -238,7 +238,7 @@ titleInput.addEventListener('input', onInput);
 /* ---------- 分享 ---------- */
 var currentShare = '';
 function collectNote() {
-  return { v: 1, title: titleInput.value || '', html: NF.sanitize(editor.innerHTML), ts: Date.now(), st: styleState };
+  return { v: 2, a: authorId(), title: titleInput.value || '', html: NF.sanitize(editor.innerHTML), ts: Date.now(), st: styleState };
 }
 async function buildShare(pw) {
   var note = collectNote();
@@ -309,10 +309,26 @@ $('btnBack').onclick = function () {
 
 /* ================= 阅读模式 ================= */
 var encBuf = null;
+var readNote = null;   /* 当前阅读的笔记 */
+var isAuthor = false;  /* 这条分享是不是我自己发的 */
+
+/* 作者识别：分享时把随机 id 写进链接，存在本机 localStorage 里。
+   别人打开没有这个 id → 只读；你自己打开 → 可编辑。 */
+function authorId() {
+  var id = storeGet('nf.author');
+  if (!id) { id = Math.random().toString(36).slice(2) + Date.now().toString(36); storeSet('nf.author', id); }
+  return id;
+}
+function isMine(a) { return !!(a && a === storeGet('nf.author')); }
+
 async function enterRead(note) {
+  readNote = note;
   document.body.classList.add('read');
   document.title = (note.title || '拾光笔记') + ' · 来自分享';
   titleInput.value = note.title || '';
+  titleInput.readOnly = true;
+  /* 关键：真正关掉编辑能力，而不是只靠 CSS 挡点击 */
+  editor.setAttribute('contenteditable', 'false');
   editor.innerHTML = NF.sanitize(note.html || '');
   if (note.st) { styleState = note.st; applyStyle(); }
   $('metaDate').textContent = fmtDate(note.ts);
@@ -324,18 +340,42 @@ async function enterRead(note) {
   $('btnShare').style.display = 'none';
   $('btnMore').style.display = 'none';
   $('btnBack').style.display = 'none';
+
+  /* 作者本人才能看到「继续编辑」；访客只看到复制链接和另存 */
+  var mine = isMine(note.a);
+  $('rbEdit').hidden = !mine;
+  $('rbSave').hidden = mine;
+  if (mine) toast('这是你自己的分享，可继续编辑');
 }
+/* 访客版「另存」：把别人的笔记存成自己的草稿，在副本上改，不动原文 */
+$('rbSave').onclick = function () {
+  if (!readNote) return;
+  storeSet('nf.doc', JSON.stringify({
+    title: (readNote.title || '') + '（副本）',
+    html: NF.sanitize(readNote.html || ''), ts: Date.now()
+  }));
+  toast('已存为我的笔记副本，可修改后重新分享');
+  location.href = location.href.split('#')[0];
+};
 $('rbCopy').onclick = function () { copyText(location.href); };
 $('rbEdit').onclick = function () {
+  if (!isMine(readNote && readNote.a)) { toast('这条分享不是你发的，只能另存为副本'); return; }
   /* 把分享内容载入编辑器，去掉 hash 回到编辑态 */
   storeSet('nf.doc', JSON.stringify({ title: titleInput.value, html: editor.innerHTML, ts: Date.now() }));
   history.replaceState(null, '', location.pathname + location.search);
   document.body.classList.remove('read');
+  editor.setAttribute('contenteditable', 'true');
+  titleInput.readOnly = false;
   $('readBar').hidden = true;
   $('btnShare').style.display = ''; $('btnMore').style.display = ''; $('btnBack').style.display = '';
   toast('已载入编辑器，可继续修改后重新分享');
   window.scrollTo(0, 0);
 };
+/* 硬防线：阅读态下任何输入企图都截断 */
+editor.addEventListener('beforeinput', function (e) { if (document.body.classList.contains('read')) e.preventDefault(); });
+editor.addEventListener('keydown', function (e) {
+  if (document.body.classList.contains('read') && !e.metaKey && !e.ctrlKey) e.preventDefault();
+});
 
 async function unlockTry() {
   var pw = $('unlockPw').value;
@@ -375,6 +415,8 @@ $('unlockPw').addEventListener('keydown', function (e) { if (e.key === 'Enter') 
 })();
 
 function loadDraft() {
+  editor.setAttribute('contenteditable', 'true');
+  titleInput.readOnly = false;
   try {
     var d = JSON.parse(storeGet('nf.doc') || 'null');
     if (d && (d.html || d.title)) {
