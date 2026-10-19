@@ -110,6 +110,7 @@
     if (!src) return '';
     if (/^(data:image\/(png|jpe?g|webp|gif)[,;])/i.test(src)) return src;
     if (/^https?:\/\//i.test(src)) return src;
+    if (/^(?!\/\/)(?!.*javascript:)[\w.\/-]+\.(png|jpe?g|webp|gif)$/i.test(src)) return src; /* 同源相对路径 */
     return '';
   }
   function sanitize(html) {
