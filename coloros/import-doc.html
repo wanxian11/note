@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>导入复刻文档 · 便签</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div style="max-width:760px;margin:0 auto;padding:20px 14px">
+  <div class="paper" data-note-color="paper" style="min-height:60vh">
+    <div id="docPreview"></div>
+    <p style="color:var(--mut);font-size:13px;margin-top:18px">↑ 复刻自 ColorOS 便签分享文档（tiptap 结构 1:1 还原：H1/H2/H3、solid/dashed 分割线、11 张图、超链接）</p>
+  </div>
+  <div style="display:flex;gap:10px;margin-top:16px">
+    <button id="btnImport" class="rf-btn" style="flex:1">＋ 导入我的便签</button>
+    <button id="btnShare" class="rf-btn" style="flex:1;background:var(--ink)">复制分享链接</button>
+  </div>
+  <div id="msg" style="margin-top:12px;font-size:13px;color:var(--mut)"></div>
+</div>
+<script src="codec.js"></script>
+<script src="db.js"></script>
+<script>
+var TITLE = '低保广告🚗高佣联盟一天1O-3O米不等，1米起秒提秒到';
+/* 复刻正文：结构与官方分享页逐节点一致（来源 notes.coloros.com/s/eQ7GZmEsT0Gn_1 渲染结果）
+   图片已转存本仓库 assets/（原 heytapcs 签名 URL 7 天过期） */
+var HTML =
+  '<h1>' + TITLE + '</h1>'
+  + '<img src="assets/ad1.jpg" alt="">'
+  + '<h3>高佣联盟新增玩法 看一个广告0.8左右，备战双11，大放水冲冲冲</h3>'
+  + '<hr style="border-top:1px solid #d5cfc0">'
+  + '<h3>高佣联盟APP</h3>'
+  + '<h3>下载链接:</h3>'
+  + '<h3><a href="https://kurl07.cn/tDZ3Q4" target="_blank" rel="noopener noreferrer">https://kurl07.cn/tDZ3Q4</a></h3>'
+  + '<div>---------------</div>'
+  + '<h3>或应用市场搜索【高佣联盟】下载注册，填写邀请码：3829</h3>'
+  + '<h3>网购/外卖/出行 搜全网优惠券</h3>'
+  + '<hr style="border-top:1px solid #d5cfc0">'
+  + '<h3>一台手机 1小时 10-30 块钱 工作室速冲了 ❗️❗️❗️ 不投米  一个广告5 毛 1块钱。无限看 最高养养机。别一直看。看5个 8个歇一会</h3>'
+  + '<img src="assets/ad2.jpg" alt="">'
+  + '<h2>视频教程↓</h2>'
+  + '<h3><a href="https://ncnmh3zxlsvh.feishu.cn/wiki/D3tmwO4wTiF6OCkxSNMcktI9nUg" target="_blank" rel="noopener noreferrer">https://ncnmh3zxlsvh.feishu.cn/wiki/D3tmwO4wTiF6OCkxSNMcktI9nUg</a></h3>'
+  + '<hr style="border-top:1px dashed #d5cfc0">'
+  + '<img src="assets/ad3.jpg" alt=""><img src="assets/ad4.jpg" alt=""><img src="assets/ad5.jpg" alt="">'
+  + '<img src="assets/ad6.jpg" alt=""><img src="assets/ad7.jpg" alt=""><img src="assets/ad8.jpg" alt="">'
+  + '<img src="assets/ad9.jpg" alt=""><img src="assets/ad10.jpg" alt=""><img src="assets/ad11.jpg" alt="">'
+  + '<h3>高佣联盟APP</h3>'
+  + '<h3>下载链接:</h3>'
+  + '<h3><a href="https://kurl07.cn/tDZ3Q4" target="_blank" rel="noopener noreferrer">https://kurl07.cn/tDZ3Q4</a></h3>'
+  + '<h3>---------------</h3>'
+  + '<h3>或应用市场搜索【高佣联盟】下载注册，填写邀请码：38283984</h3>'
+  + '<h3>网购/外卖/出行 搜全网优惠券</h3>';
+
+document.getElementById('docPreview').innerHTML = NF.sanitize(HTML);
+
+var msg = document.getElementById('msg');
+document.getElementById('btnImport').onclick = function () {
+  NDB.Notes.all('active').then(function (rows) {
+    if (rows.some(function (r) { return r.title === TITLE; })) { msg.textContent = '已经导入过了，去便签列表看 ✅'; return; }
+    return NDB.Notes.create({ title: TITLE, raw_text: HTML, color: 'paper' }).then(function () {
+      msg.textContent = '已导入！打开 index.html 即可在列表看到、继续编辑、再次分享 ✅';
+    });
+  });
+};
+document.getElementById('btnShare').onclick = function () {
+  NF.encode({ v: 1, title: TITLE, html: HTML, ts: Date.now() }).then(function (enc) {
+    var link = 'https://wanxian11.github.io/note/coloros/#' + enc;
+    navigator.clipboard.writeText(link).then(function () { msg.textContent = '分享链接已复制（' + (link.length/1024).toFixed(1) + ' KB）'; });
+  });
+};
+</script>
+</body>
+</html>
