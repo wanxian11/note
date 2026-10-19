@@ -136,7 +136,9 @@ body{
 /* ---- 阅读模式 ---- */
 body.read #toolbar{ display:none; }
 body.read .paper-h1{ pointer-events:none; }
-body.read #editor{ pointer-events:none; }
+body.read #editor{ pointer-events:none; -webkit-user-select:text; user-select:text; }
+/* 兜底：即便 CSS 失效，也不能让别人改你的内容 */
+body.read #editor[contenteditable="true"]{ caret-color:transparent; }
 .read-bar{
   position:fixed; left:0; right:0; bottom:0; z-index:40;
   display:flex; align-items:center; gap:10px;
