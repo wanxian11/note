@@ -42,6 +42,9 @@
     </button>
     <span class="e-meta" id="editMeta"></span>
     <div class="e-acts">
+      <button class="ib" id="shareBtn" title="分享">
+        <svg viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="17" cy="6" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="17" cy="18" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8.4 10.8l6.2-3.4M8.4 13.2l6.2 3.4" stroke="currentColor" stroke-width="2"/></svg>
+      </button>
       <button class="ib" id="restoreBtn" hidden title="恢复">↩︎</button>
       <button class="ib" id="delBtn" title="删除">
         <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -80,7 +83,44 @@
   </footer>
 </section>
 
+<!-- ============ 分享链接阅读视图 ============ -->
+<section id="readView" hidden>
+  <header class="e-head">
+    <span class="e-meta" id="readMeta"></span>
+    <div class="e-acts">
+      <button class="ib" id="readCopyBtn" title="复制链接">🔗</button>
+      <button class="ib" id="readSaveBtn" title="存为我的便签">＋</button>
+    </div>
+  </header>
+  <div class="paper" style="margin-top:6px">
+    <h2 id="readTitle" class="read-t"></h2>
+    <div id="readPaper" class="read-body"></div>
+  </div>
+  <footer class="read-foot">
+    <button class="rf-btn" id="readPwBtn" hidden>🔒 输入密码查看</button>
+  </footer>
+</section>
+
+<!-- ============ 分享面板（仿 ColorOS「分享笔记」） ============ -->
+<div class="sheet" id="shareSheet" hidden>
+  <div class="sheet-mask" id="shareMask"></div>
+  <div class="sheet-body">
+    <div class="sh-title">分享笔记</div>
+    <button class="sh-item" id="shLink">以链接形式分享</button>
+    <button class="sh-item" id="shText">以文字形式分享</button>
+    <button class="sh-item" id="shPic">以图片形式分享</button>
+    <div class="sh-pw" id="shPwRow" hidden>
+      <input type="password" id="shPwInput" placeholder="设置查看密码（至少 4 位，可留空=不加密）">
+      <button id="shPwGo">生成</button>
+    </div>
+    <div class="sh-link" id="shLinkBox" hidden></div>
+    <button class="sh-cancel" id="shCancel">取消</button>
+  </div>
+</div>
+
 <div class="toast" id="toast" hidden></div>
+
+<script src="codec.js"></script>
 
 <script src="db.js"></script>
 <script src="editor.js"></script>
