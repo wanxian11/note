@@ -29,17 +29,25 @@ function renderList() {
       return (r.title + ' ' + r.text).toLowerCase().indexOf(kw) >= 0;
     });
     $('empty').hidden = list.length > 0;
-    $('listCount').textContent = list.length + ' 条便签';
+    $('listCount').textContent = list.length ? list.length + ' 条便签' : '';
+    /* 空态文案跟随语境：搜索无结果 ≠ 一条便签都没有 */
+    if (!list.length) {
+      var ep = $('empty').querySelector('p');
+      ep.textContent = state.keyword ? '没有匹配「' + state.keyword + '」的便签' : '还没有便签';
+    }
     grid.innerHTML = list.map(function (r) {
-      var preview = esc(r.text).slice(0, 120).replace(/\n/g, '<br>');
-      return '<div class="card" data-id="' + r.local_id + '" data-color="' + esc(r.color || 'paper') + '">'
-        + (r.title ? '<div class="card-t">' + esc(r.title) + '</div>' : '')
-        + '<div class="card-b">' + (preview || '<span class="muted">（无正文）</span>') + '</div>'
-        + '<div class="card-f"><span>' + fmt(r.update_time) + '</span></div>'
-        + '</div>';
+      var preview = esc(r.text).slice(0, 140).replace(/\n+/g, ' ');
+      return '<article class="card" data-id="' + r.local_id + '" data-color="' + esc(r.color || 'paper') + '" tabindex="0" role="button">'
+        + (r.title ? '<h2 class="card-t">' + esc(r.title) + '</h2>' : '')
+        + '<p class="card-b">' + (preview || '<span class="muted">无正文</span>') + '</p>'
+        + '<div class="card-f">' + fmt(r.update_time) + '</div>'
+        + '</article>';
     }).join('');
     Array.prototype.forEach.call(grid.querySelectorAll('.card'), function (c) {
       c.onclick = function () { openNote(c.dataset.id); };
+      c.onkeydown = function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openNote(c.dataset.id); }
+      };
     });
   });
   renderFolders();
@@ -47,7 +55,12 @@ function renderList() {
 function renderFolders() {
   NDB.Folders.all().then(function (fs) {
     var box = $('folders');
-    var items = [{ guid: 'all', name: '全部笔记' }].concat(fs).concat([{ guid: 'trash', name: '🗑 回收站' }]);
+    /* 'all' 是虚拟汇总项，不来自 folders 表。
+       过滤掉库里的 default 系统分类（名为「所有笔记」），否则会出现两个语义相同的胶囊。 */
+    var real = fs.filter(function (f) {
+      return f.guid !== 'default' && f.name !== '所有笔记';
+    });
+    var items = [{ guid: 'all', name: '全部笔记' }].concat(real).concat([{ guid: 'trash', name: '回收站' }]);
     box.innerHTML = items.map(function (f) {
       return '<button class="fol' + (state.folder === f.guid ? ' on' : '') + '" data-g="' + f.guid + '">' + esc(f.name) + '</button>';
     }).join('');
@@ -55,7 +68,7 @@ function renderFolders() {
       b.onclick = function () {
         state.folder = b.dataset.g;
         state.view = b.dataset.g === 'trash' ? 'trash' : 'list';
-        show(state.view === 'trash' ? 'list' : 'list'); /* 回收站仍用列表壳 */
+        show('list');
         renderList();
       };
     });
@@ -174,12 +187,21 @@ var TOOLBAR = [
     if (b) b.onclick = t[1];
   });
   var cs = $('colorRow');
+  var NAMES = { paper: '白', mist: '雾', lemon: '米', peach: '桃', violet: '紫', mint: '青', dark: '夜' };
   Object.keys(NED.COLORS).forEach(function (k) {
     var b = document.createElement('button');
-    b.className = 'sw'; b.style.background = NED.COLORS[k]; b.dataset.c = k;
+    b.className = 'sw';
+    b.dataset.c = k;
+    b.type = 'button';
+    b.title = NAMES[k] || k;
+    b.setAttribute('aria-label', '便签纸颜色：' + (NAMES[k] || k));
     b.onclick = function () {
       state.editor.setColor(k);
-      Array.prototype.forEach.call(cs.children, function (x) { x.classList.toggle('on', x === b); });
+      Array.prototype.forEach.call(cs.children, function (x) {
+        var on = x === b;
+        x.classList.toggle('on', on);
+        x.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
     };
     cs.appendChild(b);
   });
@@ -212,11 +234,27 @@ function shareLink(pw) {
   var p = pw ? NF.encodeEncrypted(payload, pw) : NF.encode(payload);
   p.then(function (enc) {
     var link = base + '#' + enc;
-    $('shLinkBox').hidden = false;
-    $('shLinkBox').textContent = link;
+    var box = $('shLinkBox');
+    box.hidden = false;
+    box.textContent = link;
     copyText(link);
     var kb = (link.length / 1024).toFixed(1);
-    toast('链接已复制（' + kb + ' KB）' + (pw ? ' · 需密码查看' : ''));
+    /* 回环地址提示：本地开发时生成的链接别人打不开。
+       这是必须被读到的状态警示，不走 1.8s 自动消失的普通 toast，改用常驻警示条。 */
+    if (/^https?:\/\/(127\.0\.0\.1|localhost)/.test(link)) {
+      var warn = document.getElementById('loopWarn');
+      if (!warn) {
+        warn = document.createElement('div');
+        warn.id = 'loopWarn';
+        warn.style.cssText = 'margin:8px 0 0;padding:10px 12px;border-radius:8px;background:#FBF1EF;border:1px solid #E8C7C2;color:#8C3B32;font-size:12.5px;line-height:1.6';
+        $('shLinkBox').parentNode.insertBefore(warn, $('shLinkBox').nextSibling);
+      }
+      warn.innerHTML = '⚠️ 这是<b>本机地址</b>，只有你自己打得开。部署到线上后生成的链接才会带正确域名。';
+    } else {
+      var w2 = document.getElementById('loopWarn');
+      if (w2) w2.remove();
+      toast('链接已复制（' + kb + ' KB）' + (pw ? ' · 需密码查看' : ''));
+    }
     if (link.length > 60000) toast('链接超 60KB，微信可能截断');
   })['catch'](function (e) { toast('生成失败：' + e.message); });
 }
@@ -230,6 +268,11 @@ $('shText').onclick = function () {
   var r = state.current;
   copyText((r.title ? r.title + '\n\n' : '') + (r.text || ''));
   $('shareSheet').hidden = true;
+};
+/* 链接框点击即复制整条链接，不用手动选中折行文本 */
+$('shLinkBox').onclick = function () {
+  var t = this.textContent;
+  if (t) copyText(t);
 };
 
 /* 以图片形式分享：Canvas 绘制便签卡片（纸色底 + 标题 + 正文折行），下载 PNG */
