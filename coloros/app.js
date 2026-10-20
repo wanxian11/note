@@ -34,6 +34,12 @@ function renderList() {
     if (!list.length) {
       var ep = $('empty').querySelector('p');
       ep.textContent = state.keyword ? '没有匹配「' + state.keyword + '」的便签' : '还没有便签';
+      /* 教程曾被删（打标记）且当前是全空态 → 提供「恢复教程」入口 */
+      var removed = false;
+      try { removed = localStorage.getItem('nf.tut.removed') === '1'; } catch (e) {}
+      $('btnRestoreTut').hidden = !(removed && !state.keyword);
+    } else {
+      $('btnRestoreTut').hidden = true;
     }
     grid.innerHTML = list.map(function (r) {
       var preview = esc(r.text).slice(0, 140).replace(/\n+/g, ' ');
@@ -159,6 +165,12 @@ $('delBtn').onclick = function () {
   /* 删除的是教程种子则打标记，不再自动补种 */
   if (state.current && state.current.title === AIDOGE_TUTORIAL.title) { try { localStorage.setItem('nf.tut.removed', '1'); } catch (e) {} }
   NDB.Notes.toTrash(state.current.local_id).then(function () { show('list'); });
+};
+/* 空态「恢复教程」：清掉删除标记并重新种入 */
+$('btnRestoreTut').onclick = function () {
+  try { localStorage.removeItem('nf.tut.removed'); } catch (e) {}
+  NDB.Notes.create({ title: AIDOGE_TUTORIAL.title, raw_text: AIDOGE_TUTORIAL.html, color: 'lemon' })
+    .then(function () { show('list'); toast('教程已恢复到首页'); });
 };
 $('emptyTrash').onclick = function () {
   if (!confirm('清空回收站？此操作不可恢复')) return;
