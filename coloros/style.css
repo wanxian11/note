@@ -575,6 +575,22 @@ input:focus-visible,
   margin: .8em 0; padding: var(--sp-2) var(--sp-4);
   border-left: 2px solid var(--ink-4); color: var(--ink-2);
 }
+/* 表格：细线、行距、可横向滚动 */
+.read-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: .8em 0;
+  font-size: .92em;
+  display: block;
+  overflow-x: auto;
+}
+.read-body th, .read-body td {
+  border: 1px solid var(--line);
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+.read-body th { background: var(--surface-2); font-weight: 620; white-space: nowrap; }
 .read-body ul, .read-body ol { margin: .6em 0; padding-left: 1.4em; }
 .read-body ul.todo { list-style: none; padding-left: 0; }
 .read-body ul.todo li { position: relative; padding-left: 1.85em; margin: .35em 0; }
