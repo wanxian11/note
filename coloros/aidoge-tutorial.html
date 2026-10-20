@@ -1,0 +1,93 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F6F5F2">
+<title>AIDoge 全套教程 · 便签</title>
+<link rel="stylesheet" href="style.css">
+<style>
+.doc-wrap { max-width: 680px; margin: 0 auto; padding: var(--sp-4) var(--sp-4) var(--sp-6); }
+.doc-actions { display: flex; gap: var(--sp-2); margin-top: var(--sp-4); }
+.doc-msg { margin-top: var(--sp-3); font-size: var(--fs-4); color: var(--ink-2); line-height: 1.6; min-height: 20px; text-align: center; }
+.doc-note { margin-top: var(--sp-4); font-size: var(--fs-5); color: var(--ink-3); line-height: 1.6; text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="doc-wrap">
+  <header class="e-head" style="position:static;margin:0 calc(var(--sp-4) * -1)">
+    <button class="ib" id="btnBack" title="返回" aria-label="返回">
+      <svg class="ico"><use href="#i-back"/></svg>
+    </button>
+    <span class="e-meta">AIDoge 项目 + 助手 · 全套玩法教程</span>
+    <div class="e-acts">
+      <button class="ib" id="btnShareTop" title="复制分享链接" aria-label="复制分享链接">
+        <svg class="ico"><use href="#i-link"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="paper" data-note-color="paper">
+    <div id="docPreview"></div>
+  </div>
+
+  <div class="doc-actions">
+    <button id="btnShare" class="rf-btn">复制分享链接</button>
+  </div>
+
+  <div class="doc-msg" id="msg" role="status" aria-live="polite"></div>
+  <p class="doc-note">由拾光便签工具编写 · 内容编码在链接 # 里，无服务器存储</p>
+</div>
+
+<div class="toast" id="toast" hidden role="status" aria-live="polite"></div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M14.5 5.5L8 12l6.5 6.5"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10.5 13.5a4 4 0 0 0 5.7 0l2.6-2.6a4 4 0 0 0-5.7-5.7l-1.4 1.4"/><path d="M13.5 10.5a4 4 0 0 0-5.7 0l-2.6 2.6a4 4 0 0 0 5.7 5.7l1.4-1.4"/></symbol>
+  </defs>
+</svg>
+
+<script src="codec.js"></script>
+<script src="tutorial-content.js"></script>
+<script>
+var TITLE = AIDOGE_TUTORIAL.title;
+var HTML = AIDOGE_TUTORIAL.html;
+
+function toast(m) {
+  var t = document.getElementById('toast');
+  t.textContent = m; t.hidden = false;
+  clearTimeout(t._tm);
+  t._tm = setTimeout(function () { t.hidden = true; }, 2200);
+}
+
+var preview = document.getElementById('docPreview');
+preview.innerHTML = NF.sanitize(HTML);
+preview.className = 'read-body';
+
+var msg = document.getElementById('msg');
+document.getElementById('btnBack').onclick = function () { location.href = 'index.html'; };
+
+function doShare() {
+  NF.encode({ v: 1, title: TITLE, html: HTML, ts: Date.now() }).then(function (enc) {
+    var link = 'https://wanxian11.github.io/note/coloros/#' + enc;
+    var done = function () { toast('分享链接已复制（' + (link.length / 1024).toFixed(1) + ' KB）— 可直接发朋友圈'); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(link).then(done, function () { fallback(); });
+    } else fallback();
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = link;
+      ta.style.cssText = 'position:fixed;left:-9999px';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch (e) { toast('复制失败'); }
+      document.body.removeChild(ta);
+    }
+  });
+}
+document.getElementById('btnShare').onclick = doShare;
+document.getElementById('btnShareTop').onclick = doShare;
+</script>
+</body>
+</html>
