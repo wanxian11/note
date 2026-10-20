@@ -48,10 +48,7 @@
   </div>
 
   <div class="doc-actions">
-    <button id="btnImport" class="rf-btn">
-      <svg class="ico" style="width:17px;height:17px;display:inline-block;vertical-align:-3px;margin-right:6px"><use href="#i-plus"/></svg>导入我的便签
-    </button>
-    <button id="btnShare" class="rf-btn" style="background:var(--surface);color:var(--ink);border:1px solid var(--line)">复制分享链接</button>
+    <button id="btnShare" class="rf-btn">复制分享链接</button>
   </div>
 
   <div class="doc-msg" id="msg" role="status" aria-live="polite"></div>
@@ -70,7 +67,6 @@
 </svg>
 
 <script src="codec.js"></script>
-<script src="db.js"></script>
 <script>
 var TITLE = '低保广告🚗高佣联盟一天1O-3O米不等，1米起秒提秒到';
 /* 复刻正文：结构与官方分享页逐节点一致（来源 notes.coloros.com/s/eQ7GZmEsT0Gn_1 渲染结果）
@@ -120,18 +116,6 @@ var msg = document.getElementById('msg');
 
 document.getElementById('btnBack').onclick = function () {
   location.href = 'index.html';
-};
-
-document.getElementById('btnImport').onclick = function () {
-  NDB.Notes.all('active').then(function (rows) {
-    if (rows.some(function (r) { return r.title === TITLE; })) {
-      msg.textContent = '已导入过，打开 index.html 就能看到';
-      return null;
-    }
-    return NDB.Notes.create({ title: TITLE, raw_text: HTML, color: 'paper' }).then(function () {
-      msg.textContent = '✓ 已导入，打开 index.html 可编辑、可再分享';
-    });
-  });
 };
 
 function doShare() {
