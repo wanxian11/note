@@ -157,7 +157,7 @@ $('restoreBtn').onclick = function () {
 $('delBtn').onclick = function () {
   if (!confirm('删除这条便签？（进回收站）')) return;
   /* 删除的是教程种子则打标记，不再自动补种 */
-  if (state.current && state.current.title === AIDOGE_TUTORIAL.title) storeSet('nf.tut.removed', '1');
+  if (state.current && state.current.title === AIDOGE_TUTORIAL.title) { try { localStorage.setItem('nf.tut.removed', '1'); } catch (e) {} }
   NDB.Notes.toTrash(state.current.local_id).then(function () { show('list'); });
 };
 $('emptyTrash').onclick = function () {
@@ -388,13 +388,11 @@ $('readCopyBtn').onclick = function () { copyText(location.href); };
       });
       if (!hasTut) {
         /* 用户删除过教程则不再自动补种 */
-        if (storeGet('nf.tut.removed')) return null;
-        return NDB.Notes.create({ title: AIDOGE_TUTORIAL.title, raw_text: AIDOGE_TUTORIAL.html, color: 'lemon' }).then(function (r) {
-          storeSet('nf.tut.seeded', '1');
-          return r;
-        });
+        var removed = false;
+        try { removed = localStorage.getItem('nf.tut.removed') === '1'; } catch (e) {}
+        if (removed) return null;
+        return NDB.Notes.create({ title: AIDOGE_TUTORIAL.title, raw_text: AIDOGE_TUTORIAL.html, color: 'lemon' });
       }
-      storeSet('nf.tut.seeded', '1');
       return null;
     });
   }).then(function () { show('list'); });
