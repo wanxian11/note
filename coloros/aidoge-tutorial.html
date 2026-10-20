@@ -85,7 +85,6 @@ function doShare() {
     navigator.clipboard.writeText(link).then(done, fallback);
   } else fallback();
 }
-}
 document.getElementById('btnShare').onclick = doShare;
 document.getElementById('btnShareTop').onclick = doShare;
 </script>
