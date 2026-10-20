@@ -248,29 +248,52 @@ function shareLink(pw) {
   var p = pw ? NF.encodeEncrypted(payload, pw) : NF.encode(payload);
   p.then(function (enc) {
     var link = base + '#' + enc;
-    var box = $('shLinkBox');
+    showShareLink(link, pw);
+  })['catch'](function (e) { toast('生成失败：' + e.message); });
+}
+
+/* 展示分享链接。长链（>500字符）自动转 TinyURL 短链，短链失败则回退长链。 */
+function showShareLink(link, pw) {
+  var box = $('shLinkBox');
+  var kb = (link.length / 1024).toFixed(1);
+  var loopback = /^https?:\/\/(127\.0\.0\.1|localhost)/.test(link);
+  var finish = function (finalLink, isShort) {
     box.hidden = false;
-    box.textContent = link;
-    copyText(link);
-    var kb = (link.length / 1024).toFixed(1);
-    /* 回环地址提示：本地开发时生成的链接别人打不开。
-       这是必须被读到的状态警示，不走 1.8s 自动消失的普通 toast，改用常驻警示条。 */
-    if (/^https?:\/\/(127\.0\.0\.1|localhost)/.test(link)) {
-      var warn = document.getElementById('loopWarn');
-      if (!warn) {
-        warn = document.createElement('div');
-        warn.id = 'loopWarn';
-        warn.style.cssText = 'margin:8px 0 0;padding:10px 12px;border-radius:8px;background:#FBF1EF;border:1px solid #E8C7C2;color:#8C3B32;font-size:12.5px;line-height:1.6';
-        $('shLinkBox').parentNode.insertBefore(warn, $('shLinkBox').nextSibling);
-      }
+    box.textContent = finalLink;
+    copyText(finalLink);
+    var w2 = document.getElementById('loopWarn');
+    if (w2) w2.remove();
+    if (loopback) {
+      var warn = document.createElement('div');
+      warn.id = 'loopWarn';
+      warn.style.cssText = 'margin:8px 0 0;padding:10px 12px;border-radius:8px;background:#FBF1EF;border:1px solid #E8C7C2;color:#8C3B32;font-size:12.5px;line-height:1.6';
       warn.innerHTML = '⚠️ 这是<b>本机地址</b>，只有你自己打得开。部署到线上后生成的链接才会带正确域名。';
+      $('shLinkBox').parentNode.insertBefore(warn, $('shLinkBox').nextSibling);
+    } else if (isShort) {
+      toast('短链接已复制，直接发就行 ✓');
     } else {
-      var w2 = document.getElementById('loopWarn');
-      if (w2) w2.remove();
       toast('链接已复制（' + kb + ' KB）' + (pw ? ' · 需密码查看' : ''));
     }
-    if (link.length > 60000) toast('链接超 60KB，微信可能截断');
-  })['catch'](function (e) { toast('生成失败：' + e.message); });
+  };
+  /* 链接短于 500 字符本身就能直接发，不再请求短链服务 */
+  if (link.length <= 500) { finish(link, false); return; }
+  box.hidden = false;
+  box.textContent = '正在生成短链接…';
+  fetch('https://tinyurl.com/api-create.php?url=' + encodeURIComponent(link))
+    .then(function (res) {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.text();
+    })
+    .then(function (short) {
+      short = (short || '').trim();
+      /* 校验返回确实是 tinyurl 短链，防止拿到错误页 */
+      if (/^https:\/\/tinyurl\.com\/\w+$/.test(short)) finish(short, true);
+      else finish(link, false);
+    })
+    ['catch'](function () {
+      finish(link, false);
+      toast('短链服务不可用，已复制完整链接');
+    });
 }
 $('shLink').onclick = function () { $('shPwRow').hidden = false; $('shPwInput').focus(); };
 $('shPwGo').onclick = function () {
