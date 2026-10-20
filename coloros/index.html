@@ -30,6 +30,7 @@
     <symbol id="i-align-center" viewBox="0 0 24 24"><path d="M5 7h14M7.5 12h9M5 17h14"/></symbol>
     <symbol id="i-undo" viewBox="0 0 24 24"><path d="M8.5 6.5L4 11l4.5 4.5"/><path d="M4 11h9.5a5 5 0 0 1 0 10H10"/></symbol>
     <symbol id="i-redo" viewBox="0 0 24 24"><path d="M15.5 6.5L20 11l-4.5 4.5"/><path d="M20 11h-9.5a5 5 0 0 0 0 10H14"/></symbol>
+    <symbol id="i-doc" viewBox="0 0 24 24"><path d="M6.5 3.5h7L18.5 8.5V20.5h-12z"/><path d="M13.2 3.6v5h5.2"/><path d="M9 13h6.5M9 16.3h4.5"/></symbol>
   </defs>
 </svg>
 
@@ -38,6 +39,9 @@
   <header class="l-head">
     <h1 id="lTitle">便签</h1>
     <div class="l-tools">
+      <a class="ib" id="docsBtn" href="import-doc.html" title="复刻文档" aria-label="打开复刻文档">
+        <svg class="ico"><use href="#i-doc"/></svg>
+      </a>
       <button id="searchBtn" class="ib" title="搜索" aria-label="搜索">
         <svg class="ico"><use href="#i-search"/></svg>
       </button>
@@ -59,11 +63,12 @@
   <div class="empty" id="empty" hidden>
     <span class="empty-ico"><svg class="ico"><use href="#i-note"/></svg></span>
     <p id="emptyText">还没有便签</p>
+    <button class="rf-btn" id="btnRestoreDoc" hidden style="height:auto;padding:11px 20px;font-size:var(--fs-4)">恢复复刻文档到首页</button>
     <button class="rf-btn" id="btnRestoreTut" hidden style="height:auto;padding:11px 20px;font-size:var(--fs-4)">恢复 AIDoge 教程到首页</button>
   </div>
   </div>
 
-  <button class="fab" id="fab" aria-label="新建便签">
+  <button class="fab" id="fab" aria-label="新建便签" title="新建便签">
     <svg class="ico"><use href="#i-plus"/></svg>
   </button>
 </section>
