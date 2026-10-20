@@ -38,8 +38,13 @@ function renderList() {
       var removed = false;
       try { removed = localStorage.getItem('nf.tut.removed') === '1'; } catch (e) {}
       $('btnRestoreTut').hidden = !(removed && !state.keyword);
+      /* 全空态（非搜索）→ 给「恢复复刻文档」入口：文档页是独立文件，不占 IndexedDB */
+      var db = $('btnRestoreDoc');
+      if (db) db.hidden = !!state.keyword;
     } else {
       $('btnRestoreTut').hidden = true;
+      var db2 = $('btnRestoreDoc');
+      if (db2) db2.hidden = true;
     }
     grid.innerHTML = list.map(function (r) {
       var preview = esc(r.text).slice(0, 140).replace(/\n+/g, ' ');
@@ -172,6 +177,9 @@ $('btnRestoreTut').onclick = function () {
   NDB.Notes.create({ title: AIDOGE_TUTORIAL.title, raw_text: AIDOGE_TUTORIAL.html, color: 'lemon' })
     .then(function () { show('list'); toast('教程已恢复到首页'); });
 };
+/* 空态「恢复复刻文档」：跳独立文档页（正文在 import-doc.html，不占 IndexedDB） */
+var __bd = $('btnRestoreDoc');
+if (__bd) __bd.onclick = function () { location.href = 'import-doc.html'; };
 $('emptyTrash').onclick = function () {
   if (!confirm('清空回收站？此操作不可恢复')) return;
   NDB.Notes.emptyTrash().then(function () { toast('回收站已清空'); renderList(); });
