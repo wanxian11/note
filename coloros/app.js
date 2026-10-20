@@ -34,13 +34,13 @@ function renderList() {
     if (!list.length) {
       var ep = $('empty').querySelector('p');
       ep.textContent = state.keyword ? '没有匹配「' + state.keyword + '」的便签' : '还没有便签';
-      /* 教程曾被删（打标记）且当前是全空态 → 提供「恢复教程」入口 */
-      var removed = false;
+      /* 教程/复刻文档曾被删（打标记）且当前是全空态 → 提供恢复入口 */
+      var removed = false, docRemoved = false;
       try { removed = localStorage.getItem('nf.tut.removed') === '1'; } catch (e) {}
+      try { docRemoved = localStorage.getItem('nf.doc.removed') === '1'; } catch (e) {}
       $('btnRestoreTut').hidden = !(removed && !state.keyword);
-      /* 全空态（非搜索）→ 给「恢复复刻文档」入口：文档页是独立文件，不占 IndexedDB */
       var db = $('btnRestoreDoc');
-      if (db) db.hidden = !!state.keyword;
+      if (db) db.hidden = !(docRemoved && !state.keyword);
     } else {
       $('btnRestoreTut').hidden = true;
       var db2 = $('btnRestoreDoc');
@@ -167,8 +167,9 @@ $('restoreBtn').onclick = function () {
 };
 $('delBtn').onclick = function () {
   if (!confirm('删除这条便签？（进回收站）')) return;
-  /* 删除的是教程种子则打标记，不再自动补种 */
+  /* 删除的是种子便签则打标记，不再自动补种 */
   if (state.current && state.current.title === AIDOGE_TUTORIAL.title) { try { localStorage.setItem('nf.tut.removed', '1'); } catch (e) {} }
+  if (state.current && COLOROS_DOC && state.current.title === COLOROS_DOC.title) { try { localStorage.setItem('nf.doc.removed', '1'); } catch (e) {} }
   NDB.Notes.toTrash(state.current.local_id).then(function () { show('list'); });
 };
 /* 空态「恢复教程」：清掉删除标记并重新种入 */
@@ -177,9 +178,13 @@ $('btnRestoreTut').onclick = function () {
   NDB.Notes.create({ title: AIDOGE_TUTORIAL.title, raw_text: AIDOGE_TUTORIAL.html, color: 'lemon' })
     .then(function () { show('list'); toast('教程已恢复到首页'); });
 };
-/* 空态「恢复复刻文档」：跳独立文档页（正文在 import-doc.html，不占 IndexedDB） */
+/* 空态「恢复复刻文档」：清掉删除标记并重新种入（与教程同款便签机制） */
 var __bd = $('btnRestoreDoc');
-if (__bd) __bd.onclick = function () { location.href = 'import-doc.html'; };
+if (__bd) __bd.onclick = function () {
+  try { localStorage.removeItem('nf.doc.removed'); } catch (e) {}
+  NDB.Notes.create({ title: COLOROS_DOC.title, raw_text: COLOROS_DOC.html, color: 'paper' })
+    .then(function () { show('list'); toast('复刻文档已恢复到首页'); });
+};
 $('emptyTrash').onclick = function () {
   if (!confirm('清空回收站？此操作不可恢复')) return;
   NDB.Notes.emptyTrash().then(function () { toast('回收站已清空'); renderList(); });
@@ -568,9 +573,10 @@ $('readCopyBtn').onclick = function () { copyText(location.href); };
     } catch (e) { alert('打开失败：' + e.message); }
     return;
   }
-  /* 首屏种子：AIDoge 教程（仅在库中还没有时种一次，用户删掉后不再自动补） */
+  /* 首屏种子：AIDoge 教程 + 复刻文档（仅在库中还没有时各种一次，用户删掉后不再自动补） */
   NDB.Folders.ensure().then(function () {
     return NDB.Notes.all().then(function (all) {
+      var jobs = [];
       var hasTut = all.some(function (r) {
         return r.title === AIDOGE_TUTORIAL.title || (r.raw_text || '').indexOf('AIDoge 是什么') >= 0;
       });
@@ -578,10 +584,17 @@ $('readCopyBtn').onclick = function () { copyText(location.href); };
         /* 用户删除过教程则不再自动补种 */
         var removed = false;
         try { removed = localStorage.getItem('nf.tut.removed') === '1'; } catch (e) {}
-        if (removed) return null;
-        return NDB.Notes.create({ title: AIDOGE_TUTORIAL.title, raw_text: AIDOGE_TUTORIAL.html, color: 'lemon' });
+        if (!removed) jobs.push(NDB.Notes.create({ title: AIDOGE_TUTORIAL.title, raw_text: AIDOGE_TUTORIAL.html, color: 'lemon' }));
       }
-      return null;
+      var hasDoc = all.some(function (r) {
+        return r.title === COLOROS_DOC.title || (r.raw_text || '').indexOf('高佣联盟新增玩法') >= 0;
+      });
+      if (!hasDoc) {
+        var docRemoved = false;
+        try { docRemoved = localStorage.getItem('nf.doc.removed') === '1'; } catch (e) {}
+        if (!docRemoved) jobs.push(NDB.Notes.create({ title: COLOROS_DOC.title, raw_text: COLOROS_DOC.html, color: 'paper' }));
+      }
+      return Promise.all(jobs);
     });
   }).then(function () { show('list'); });
 })();
