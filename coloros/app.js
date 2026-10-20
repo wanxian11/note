@@ -249,6 +249,17 @@ function shareNote() {
   NDB.Notes.update(r).then(function () {
     $('shareSheet').hidden = false;
     $('shLinkBox').hidden = true; $('shPwRow').hidden = true; $('shPwInput').value = '';
+    /* 固定链接区：点「以链接形式分享」后才随密码行一起出现（生成按钮在那） */
+    var liveRow = $('shLiveRow');
+    if (liveRow) liveRow.hidden = true;
+    var cb = $('shLiveChk');
+    if (cb) { cb.checked = false; cb.disabled = false; }
+    var go = $('shPwGo');
+    if (go) go.textContent = '生成';
+    var hint = $('shLiveHint');
+    if (hint) hint.textContent = r.live_id
+      ? '已创建过：' + r.live_id + '（勾选后点「生成」即覆盖更新，链接不变）'
+      : '首次创建后，以后改完内容再点一次即可';
   });
 }
 $('shareBtn').onclick = shareNote;
@@ -276,27 +287,50 @@ function shortIdFor(enc) {
     return 'n' + hex;
   });
 }
-function ghPutShare(id, enc, token) {
+/* 固定链接 ID：随机而非内容哈希 —— 内容换了 ID 不换，链接才能恒定 */
+function liveIdNew() {
+  var b = crypto.getRandomValues(new Uint8Array(5)), hex = '';
+  b.forEach(function (x) { hex += ('0' + x.toString(16)).slice(-2); });
+  return 'n' + hex;
+}
+function ghPutShare(id, enc, token, sha) {
   var json = JSON.stringify({ e: enc });
   /* GitHub Contents API 要求标准 base64；unescape+encodeURIComponent 处理中文 */
   var b64 = btoa(unescape(encodeURIComponent(json)));
+  var body = { message: 'share ' + id, content: b64, branch: GH_BRANCH };
+  /* 带 sha = 覆盖更新（固定链接）；不带 = 新建，422 视为内容相同已存在 */
+  if (sha) body.sha = sha;
   return fetch('https://api.github.com/repos/' + GH_REPO + '/contents/shares/' + id + '.json', {
     method: 'PUT',
     headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json' },
-    body: JSON.stringify({ message: 'share ' + id, content: b64, branch: GH_BRANCH })
+    body: JSON.stringify(body)
   }).then(function (r) {
-    /* 422 = 文件已存在且请求未带 sha。ID 由内容哈希得出 → 内容必然相同，视为已成功 */
-    if (r.status === 422) return id;
+    /* 422 = 文件已存在且未带 sha。
+       哈希 ID（sha 参数缺省 undefined）：内容必然相同，视为成功；
+       固定链接首次创建（sha 显式传 null）：走到这里 = ID 碰撞（2^-40 量级），报错重试 */
+    if (r.status === 422) {
+      if (sha === undefined) return id;
+      throw new Error('链接冲突，请再点一次');
+    }
     if (!r.ok) {
       return r.json()['catch'](function () { return {}; }).then(function (j) {
         var msg = j && j.message ? j.message : 'GitHub ' + r.status;
         if (r.status === 401) msg = '令牌无效或已过期';
         if (r.status === 403 || r.status === 404) msg = '令牌没有这个仓库的写入权限';
+        if (r.status === 409) msg = '链接刚被更新，请再点一次';
         throw new Error(msg);
       });
     }
     return id;
   });
+}
+/* 查已有分享文件的 sha（覆盖写的前置条件）；不存在返回 null */
+function ghShareSha(id, token) {
+  return fetch('https://api.github.com/repos/' + GH_REPO + '/contents/shares/' + id + '.json?ref=' + GH_BRANCH, {
+    headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json' }
+  }).then(function (r) {
+    return r.ok ? r.json() : null;
+  }).then(function (j) { return j && j.sha ? j.sha : null; });
 }
 /* 单个源：带超时的 JSON 获取。超时很重要 —— 挂起不通的源不能让调用方无限等。 */
 function fetchJsonTimeout(url, ms) {
@@ -322,10 +356,13 @@ function fetchJsonTimeout(url, ms) {
    第 3 源是站点自身（与页面同域，国内可达）；页面在 /note/coloros/，
    文件在仓库根 shares/ → 相对路径必须是 ../shares/。 */
 function ghGetShare(id) {
+  /* 固定链接会覆盖同名文件，而 CDN 按 URL 缓存 —— 必须加 cache-bust 参数，
+     否则「更新」后读到的是 CDN 旧副本 */
+  var bust = Date.now();
   var urls = [
-    'https://raw.githubusercontent.com/' + GH_REPO + '/' + GH_BRANCH + '/shares/' + id + '.json',
-    'https://cdn.jsdelivr.net/gh/' + GH_REPO + '@' + GH_BRANCH + '/shares/' + id + '.json',
-    '../shares/' + id + '.json'
+    'https://raw.githubusercontent.com/' + GH_REPO + '/' + GH_BRANCH + '/shares/' + id + '.json?_=' + bust,
+    'https://cdn.jsdelivr.net/gh/' + GH_REPO + '@' + GH_BRANCH + '/shares/' + id + '.json?_=' + bust,
+    '../shares/' + id + '.json?_=' + bust
   ];
   return new Promise(function (res, rej) {
     var pending = urls.length, firstErr = null;
@@ -350,12 +387,13 @@ function ghVerify(token) {
     });
 }
 
-function shareLink(pw) {
+function shareLink(pw, live) {
   var r = state.current;
-  var payload = { v: 1, title: r.title || '', html: r.raw_text || ('<p>' + esc(r.text) + '</p>'), ts: r.update_time };
+  var payload = { v: 1, title: r.title || '', html: r.raw_text || ('<p>' + esc(r.text) + '</p>'), ts: Date.now() };
   var base = location.href.split('#')[0];
   var p = pw ? NF.encodeEncrypted(payload, pw) : NF.encode(payload);
   state.lastSharePw = pw || null;
+  state.lastShareLive = !!live;
   p.then(function (enc) {
     var long = base + '#' + enc;
     var token = ghToken();
@@ -364,20 +402,34 @@ function shareLink(pw) {
     /* 有令牌 → 一律走短链（不论内容长短，每个文档都短） */
     var box = $('shLinkBox');
     box.hidden = false;
-    box.textContent = '正在生成短链接…';
-    shortIdFor(enc).then(function (id) {
-      return ghPutShare(id, enc, token).then(function () {
-        var short = base.replace(/index\.html$/, '') + '#s=' + id;
-        showShareLink(short, pw, true);
+    box.textContent = live ? '正在发布固定链接…' : '正在生成短链接…';
+    /* 固定链接：复用本条便签已记住的 id（没有就新建一个随机 id），
+       覆盖写同一个 shares/<id>.json → 链接恒定，内容随每次分享更新 */
+    var idP = live
+      ? Promise.resolve(r.live_id || liveIdNew())
+      : shortIdFor(enc);
+    idP.then(function (id) {
+      /* sha 三态：undefined=哈希短链（422 视为内容相同）；null=固定链接首次创建；字符串=覆盖更新 */
+      var shaP = live
+        ? (r.live_id ? ghShareSha(id, token) : Promise.resolve(null))
+        : Promise.resolve(undefined);
+      return shaP.then(function (sha) {
+        return ghPutShare(id, enc, token, sha).then(function () {
+          if (live && r.live_id !== id) return NDB.Notes.setLive(r.local_id, id).then(function () { return id; });
+          return id;
+        });
       });
+    }).then(function (id) {
+      var short = base.replace(/index\.html$/, '') + '#s=' + id;
+      showShareLink(short, pw, true, live);
     })['catch'](function (e) {
       showShareLink(long, pw, false);
-      toast('短链失败（' + String(e.message || e).slice(0, 30) + '），已复制完整链接');
+      toast((live ? '固定链接发布失败（' : '短链失败（') + String(e.message || e).slice(0, 30) + '），已复制完整链接');
     });
   })['catch'](function (e) { toast('生成失败：' + e.message); });
 }
 
-function showShareLink(link, pw, isShort) {
+function showShareLink(link, pw, isShort, live) {
   var box = $('shLinkBox');
   var loopback = /^https?:\/\/(127\.0\.0\.1|localhost)/.test(link);
   box.hidden = false;
@@ -393,6 +445,8 @@ function showShareLink(link, pw, isShort) {
     warn.style.cssText = 'margin:8px 0 0;padding:10px 12px;border-radius:8px;background:#FBF1EF;border:1px solid #E8C7C2;color:#8C3B32;font-size:12.5px;line-height:1.6';
     warn.innerHTML = '⚠️ 这是<b>本机地址</b>，只有你自己打得开。部署到线上后生成的链接才会带正确域名。';
     $('shLinkBox').parentNode.insertBefore(warn, $('shLinkBox').nextSibling);
+  } else if (live) {
+    toast('固定链接已复制 ✓ 以后改完内容再点一次「更新」，这条链接就一直有效');
   } else if (isShort) {
     toast('短链接已复制（' + link.length + ' 字符），直接发就行 ✓');
   } else {
@@ -414,18 +468,30 @@ $('ghSave').onclick = function () {
     $('ghToken').value = '';
     $('shGhRow').hidden = true;
     toast('已保存，正在生成短链接');
-    shareLink(state.lastSharePw);
+    shareLink(state.lastSharePw, state.lastShareLive);
   })['catch'](function (e) {
     $('ghSave').textContent = '保存';
     err.hidden = false;
     err.textContent = e.message;
   });
 };
-$('shLink').onclick = function () { $('shPwRow').hidden = false; $('shPwInput').focus(); };
+$('shLink').onclick = function () {
+  $('shPwRow').hidden = false;
+  /* 固定链接要往仓库写内容，未授权时不可勾选 */
+  $('shLiveRow').hidden = !ghToken();
+  $('shPwInput').focus();
+};
+/* 勾选固定链接 → 按钮文案变「更新」，动作含义即时可见 */
+$('shLiveChk').onchange = function () {
+  $('shPwGo').textContent = this.checked ? '更新' : '生成';
+};
 $('shPwGo').onclick = function () {
   var pw = $('shPwInput').value.trim();
   if (pw.length > 0 && pw.length < 4) { toast('密码至少 4 位'); return; }
-  shareLink(pw || null);
+  var cb = $('shLiveChk');
+  var live = !!(cb && cb.checked);
+  if (live && cb.disabled) { toast('请先取消勾选固定链接'); return; }
+  shareLink(pw || null, live);
 };
 $('shText').onclick = function () {
   var r = state.current;
