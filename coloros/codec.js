@@ -94,7 +94,7 @@
   }
 
   /* HTML 净化：白名单标签 + 受限 style，防分享页被注入 */
-  var OK_TAGS = { P:1, DIV:1, BR:1, B:1, STRONG:1, I:1, EM:1, U:1, S:1, STRIKE:1, H1:1, H2:1, H3:1, H4:1, UL:1, OL:1, LI:1, BLOCKQUOTE:1, PRE:1, CODE:1, IMG:1, SPAN:1, A:1, FONT:1, HR:1 };
+  var OK_TAGS = { P:1, DIV:1, BR:1, B:1, STRONG:1, I:1, EM:1, U:1, S:1, STRIKE:1, H1:1, H2:1, H3:1, H4:1, UL:1, OL:1, LI:1, BLOCKQUOTE:1, PRE:1, CODE:1, IMG:1, SPAN:1, A:1, FONT:1, HR:1, TABLE:1, THEAD:1, TBODY:1, TR:1, TH:1, TD:1 };
   function safeStyle(v) {
     var keep = [];
     (v || '').split(';').forEach(function (d) {
