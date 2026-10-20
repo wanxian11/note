@@ -438,7 +438,23 @@ input:focus-visible,
   margin: .7em 0;
   display: block;
 }
-#editor a { color: inherit; text-decoration: underline; text-underline-offset: 2px; text-decoration-color: var(--ink-4); }
+/* 正文链接可点击反馈（编辑器与阅读视图共用）：pointer + hover 加深 + 按下态 */
+#editor a, .read-body a {
+  color: inherit; text-decoration: underline;
+  text-underline-offset: 2px; text-decoration-color: var(--ink-4);
+  cursor: pointer;
+  border-radius: 3px;
+  transition: text-decoration-color var(--dur) var(--ease),
+              background-color var(--dur) var(--ease);
+}
+#editor a:hover, .read-body a:hover {
+  text-decoration-color: var(--ink);
+  background-color: color-mix(in srgb, var(--ink) 7%, transparent);
+}
+#editor a:active, .read-body a:active {
+  text-decoration-color: var(--ink);
+  background-color: color-mix(in srgb, var(--ink) 13%, transparent);
+}
 
 /* 待办：方框与文字基线对齐 */
 #editor ul.todo { list-style: none; padding-left: 0; }
@@ -569,7 +585,6 @@ input:focus-visible,
 .read-body h1:first-child, .read-body h2:first-child, .read-body h3:first-child { margin-top: 0; }
 .read-body p { margin: 0 0 .7em; }
 .read-body img { max-width: 100%; height: auto; border-radius: var(--r-sm); margin: .7em 0; display: block; }
-.read-body a { color: inherit; text-underline-offset: 2px; text-decoration-color: var(--ink-4); }
 .read-body hr { border: none; border-top: 1px solid var(--line); margin: 1.4em 0; }
 .read-body blockquote {
   margin: .8em 0; padding: var(--sp-2) var(--sp-4);
@@ -854,6 +869,11 @@ input:focus-visible,
 
 /* 深色便签纸内的阅读对比 */
 .paper[data-note-color=dark] #editor a { text-decoration-color: #6E6B64; }
+/* 深色纸上的 hover/active：墨色叠加不可见，改用亮色加深 */
+.paper[data-note-color=dark] #editor a:hover,
+.paper[data-note-color=dark] #editor a:active { text-decoration-color: #E8E5DE; }
+.paper[data-note-color=dark] #editor a:hover { background-color: color-mix(in srgb, #E8E5DE 10%, transparent); }
+.paper[data-note-color=dark] #editor a:active { background-color: color-mix(in srgb, #E8E5DE 16%, transparent); }
 
 @media print {
   .e-head, .e-tools, .read-foot, .fa b { display: none; }
