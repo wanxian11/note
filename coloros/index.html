@@ -170,6 +170,16 @@
       <button id="shPwGo">生成</button>
     </div>
     <div class="sh-link" id="shLinkBox" hidden></div>
+    <div class="sh-gh" id="shGhRow" hidden>
+      <div class="sh-gh-t">🔗 让每个文档的链接都变短</div>
+      <div class="sh-gh-d">内容存进你自己仓库的 shares/ 目录，链接固定 55 字符。<strong>注意：该目录公开可读</strong>，私密内容请点「查看密码」加密后再分享。只需授权一次：</div>
+      <div class="sh-pw">
+        <input type="password" id="ghToken" placeholder="粘贴 GitHub 令牌" aria-label="GitHub 令牌">
+        <button id="ghSave">保存</button>
+      </div>
+      <a class="sh-gh-link" href="https://github.com/settings/tokens/new?scopes=repo&amp;description=bianqian-share" target="_blank" rel="noopener noreferrer">没有令牌？点这里创建 ↗ 页面底部点 Generate token，复制后粘贴到上面</a>
+      <div class="sh-gh-err" id="ghErr" hidden></div>
+    </div>
     <button class="sh-cancel" id="shCancel">取消</button>
   </div>
 </div>
