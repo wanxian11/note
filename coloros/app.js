@@ -415,7 +415,10 @@ function shareLink(pw, live) {
         : Promise.resolve(undefined);
       return shaP.then(function (sha) {
         return ghPutShare(id, enc, token, sha).then(function () {
-          if (live && r.live_id !== id) return NDB.Notes.setLive(r.local_id, id).then(function () { return id; });
+          if (live && r.live_id !== id) {
+            r.live_id = id; /* 同步内存对象：state.current 与库行是同一引用语义，下次分享直接复用 */
+            return NDB.Notes.setLive(r.local_id, id).then(function () { return id; });
+          }
           return id;
         });
       });
