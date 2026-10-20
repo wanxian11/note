@@ -30,6 +30,16 @@
         li.classList.toggle('checked', !on);
         li.classList.toggle('unchecked', on);
         self.onChange(self.getHTML(), self.getText());
+        return;
+      }
+      /* 链接：contenteditable 里浏览器默认不跳转（点击只放光标），手动开新标签。
+         与 ColorOS 便签 App 行为一致：点链接 = 打开；要改文字用键盘选中即可。 */
+      var a = e.target.closest && e.target.closest('a[href]');
+      if (a) {
+        e.preventDefault();
+        e.stopPropagation();
+        var href = a.getAttribute('href') || '';
+        if (/^(https?:|mailto:)/i.test(href)) window.open(href, '_blank', 'noopener');
       }
     });
   }
