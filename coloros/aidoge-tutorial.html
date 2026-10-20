@@ -70,39 +70,21 @@ var msg = document.getElementById('msg');
 document.getElementById('btnBack').onclick = function () { location.href = 'index.html'; };
 
 function doShare() {
-  NF.encode({ v: 1, title: TITLE, html: HTML, ts: Date.now() }).then(function (enc) {
-    var link = 'https://wanxian11.github.io/note/coloros/#' + enc;
-    var done = function (short) { toast(short ? '短链接已复制，直接发朋友圈 ✓' : '分享链接已复制（' + (link.length / 1024).toFixed(1) + ' KB）'); };
-    var fallback = function () {
-      var ta = document.createElement('textarea');
-      ta.value = link;
-      ta.style.cssText = 'position:fixed;left:-9999px';
-      document.body.appendChild(ta); ta.select();
-      try { document.execCommand('copy'); done(false); } catch (e) { toast('复制失败'); }
-      document.body.removeChild(ta);
-    };
-    if (link.length <= 500) {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(link).then(function(){done(false);}, fallback);
-      } else fallback();
-      return;
-    }
-    /* 长链自动转 TinyURL 短链，失败回退完整链接 */
-    fetch('https://tinyurl.com/api-create.php?url=' + encodeURIComponent(link))
-      .then(function (r) { return r.ok ? r.text() : Promise.reject(); })
-      .then(function (short) {
-        short = (short || '').trim();
-        if (!/^https:\/\/tinyurl\.com\/\w+$/.test(short)) short = link;
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(short).then(function(){done(short!==link);}, fallback);
-        } else fallback();
-      })
-      ['catch'](function () {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(link).then(function(){done(false);}, fallback);
-        } else fallback();
-      });
-  });
+  /* 教程是内置固定内容，分享直接给短路由（41 字符），不再编码进链接 */
+  var link = 'https://wanxian11.github.io/note/coloros/aidoge.html';
+  var done = function () { toast('短链接已复制，直接发朋友圈 ✓'); };
+  var fallback = function () {
+    var ta = document.createElement('textarea');
+    ta.value = link;
+    ta.style.cssText = 'position:fixed;left:-9999px';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) { toast('复制失败'); }
+    document.body.removeChild(ta);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(link).then(done, fallback);
+  } else fallback();
+}
 }
 document.getElementById('btnShare').onclick = doShare;
 document.getElementById('btnShareTop').onclick = doShare;
