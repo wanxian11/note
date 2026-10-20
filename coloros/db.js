@@ -111,6 +111,14 @@
     purge: function (id) {
       return tx('rich_notes', 'readwrite', function (s) { return s.delete(id); });
     },
+    /* 记住固定链接 id：只补字段不动 update_time（分享不该让便签在列表里跳位） */
+    setLive: function (id, liveId) {
+      return Notes.get(id).then(function (r) {
+        if (!r) return null;
+        r.live_id = liveId;
+        return tx('rich_notes', 'readwrite', function (s) { return s.put(r); }).then(function () { return r; });
+      });
+    },
     emptyTrash: function () {
       return Notes.all('trash').then(function (rows) {
         return Promise.all(rows.map(function (r) { return Notes.purge(r.local_id); }));
