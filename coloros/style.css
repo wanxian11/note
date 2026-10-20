@@ -731,6 +731,40 @@ input:focus-visible,
   font-weight: 520;
 }
 
+/* GitHub 短链设置行 */
+.sh-gh {
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--line-soft);
+}
+.sh-gh-t {
+  font-size: var(--fs-4);
+  font-weight: 600;
+  color: var(--ink);
+}
+.sh-gh-d {
+  margin: var(--sp-1) 0 var(--sp-2);
+  font-size: var(--fs-5);
+  line-height: 1.65;
+  color: var(--ink-3);
+}
+.sh-gh-link {
+  display: block;
+  margin-top: var(--sp-2);
+  font-size: var(--fs-5);
+  line-height: 1.6;
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: var(--ink-4);
+}
+.sh-gh-err {
+  margin-top: var(--sp-2);
+  font-size: var(--fs-5);
+  line-height: 1.6;
+  color: var(--danger);
+}
+
 /* 链接结果：可点击复制 */
 .sh-link {
   margin: var(--sp-2) 0 0;
