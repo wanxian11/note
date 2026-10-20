@@ -156,6 +156,8 @@ $('restoreBtn').onclick = function () {
 };
 $('delBtn').onclick = function () {
   if (!confirm('删除这条便签？（进回收站）')) return;
+  /* 删除的是教程种子则打标记，不再自动补种 */
+  if (state.current && state.current.title === AIDOGE_TUTORIAL.title) storeSet('nf.tut.removed', '1');
   NDB.Notes.toTrash(state.current.local_id).then(function () { show('list'); });
 };
 $('emptyTrash').onclick = function () {
@@ -378,7 +380,24 @@ $('readCopyBtn').onclick = function () { copyText(location.href); };
     } catch (e) { alert('打开失败：' + e.message); }
     return;
   }
-  NDB.Folders.ensure().then(function () { show('list'); });
+  /* 首屏种子：AIDoge 教程（仅在库中还没有时种一次，用户删掉后不再自动补） */
+  NDB.Folders.ensure().then(function () {
+    return NDB.Notes.all().then(function (all) {
+      var hasTut = all.some(function (r) {
+        return r.title === AIDOGE_TUTORIAL.title || (r.raw_text || '').indexOf('AIDoge 是什么') >= 0;
+      });
+      if (!hasTut) {
+        /* 用户删除过教程则不再自动补种 */
+        if (storeGet('nf.tut.removed')) return null;
+        return NDB.Notes.create({ title: AIDOGE_TUTORIAL.title, raw_text: AIDOGE_TUTORIAL.html, color: 'lemon' }).then(function (r) {
+          storeSet('nf.tut.seeded', '1');
+          return r;
+        });
+      }
+      storeSet('nf.tut.seeded', '1');
+      return null;
+    });
+  }).then(function () { show('list'); });
 })();
 /* 同页粘贴新分享链接时只触发 hashchange 不重载 → 手动刷新进阅读态 */
 window.addEventListener('hashchange', function () { location.reload(); });
