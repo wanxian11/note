@@ -360,15 +360,15 @@ input:focus-visible,
 .paper[data-note-color=dark] #titleInput::placeholder,
 .paper[data-note-color=dark] #editor:empty::before { color: #6A6760; }
 
-/* 标题输入：与正文同族，只靠字号和字重区分 */
+/* 标题输入：全页最大字级，必须高于正文里的一级标题 */
 #titleInput {
   width: 100%;
   border: none; outline: none; background: none;
   font-family: inherit;
-  font-size: var(--fs-2);
-  font-weight: 640;
-  line-height: 1.4;
-  letter-spacing: -.01em;
+  font-size: 26px;
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: -.02em;
   color: inherit;
   padding: 0 0 var(--sp-3);
 }
@@ -392,21 +392,21 @@ input:focus-visible,
   color: var(--ink-4);
 }
 
-/* 编辑器内富文本：层级差异拉够，不靠大小硬撑 */
+/* 正文内层级：H1 22 / H2 18.5 / H3 17 / 正文 15 —— 每级至少差 1.5px */
 #editor p { margin: 0 0 .7em; }
 #editor p:last-child { margin-bottom: 0; }
 #editor h1 {
-  font-size: 1.5em; font-weight: 650;
+  font-size: 1.47em; font-weight: 650;   /* ≈22px */
   line-height: 1.32; letter-spacing: -.015em;
   margin: 1.1em 0 .5em;
 }
 #editor h2 {
-  font-size: 1.2em; font-weight: 640;
+  font-size: 1.23em; font-weight: 640;   /* ≈18.5px */
   line-height: 1.4; letter-spacing: -.01em;
   margin: 1em 0 .45em;
 }
 #editor h3 {
-  font-size: 1.04em; font-weight: 640;
+  font-size: 1.13em; font-weight: 640;   /* ≈17px，明显大于正文 */
   line-height: 1.5;
   margin: .9em 0 .4em;
 }
@@ -546,10 +546,10 @@ input:focus-visible,
 #readView .e-head { margin: 0 calc(var(--sp-4) * -1); }
 
 .read-t {
-  font-size: var(--fs-1);
-  font-weight: 640;
-  line-height: 1.3;
-  letter-spacing: -.015em;
+  font-size: 26px;
+  font-weight: 650;
+  line-height: 1.32;
+  letter-spacing: -.02em;
   margin-bottom: var(--sp-4);
   text-wrap: pretty;
 }
@@ -562,9 +562,10 @@ input:focus-visible,
   overflow-wrap: break-word;
   text-wrap: pretty;
 }
-.read-body h1 { font-size: 1.45em; font-weight: 650; line-height: 1.32; margin: 1.1em 0 .5em; }
-.read-body h2 { font-size: 1.2em;  font-weight: 640; line-height: 1.4;  margin: 1em 0 .45em; }
-.read-body h3 { font-size: 1.04em; font-weight: 640; line-height: 1.5;  margin: .9em 0 .4em; }
+/* 与编辑页保持同一套层级：H1 22 / H2 18.5 / H3 17 */
+.read-body h1 { font-size: 1.47em; font-weight: 650; line-height: 1.32; margin: 1.1em 0 .5em; }
+.read-body h2 { font-size: 1.23em; font-weight: 640; line-height: 1.4;  margin: 1em 0 .45em; }
+.read-body h3 { font-size: 1.13em; font-weight: 640; line-height: 1.5;  margin: .9em 0 .4em; }
 .read-body h1:first-child, .read-body h2:first-child, .read-body h3:first-child { margin-top: 0; }
 .read-body p { margin: 0 0 .7em; }
 .read-body img { max-width: 100%; height: auto; border-radius: var(--r-sm); margin: .7em 0; display: block; }
@@ -678,9 +679,15 @@ input:focus-visible,
 
 /* 密码行 */
 .sh-pw {
-  display: flex; gap: var(--sp-2);
+  display: flex; align-items: center; gap: var(--sp-2);
   padding: var(--sp-3) 0 var(--sp-1);
   animation: fade-in var(--dur) var(--ease);
+}
+.sh-pw-label {
+  flex: 0 0 auto;
+  font-size: var(--fs-4);
+  color: var(--ink-2);
+  font-weight: 520;
 }
 .sh-pw input {
   flex: 1; min-width: 0;
@@ -708,7 +715,7 @@ input:focus-visible,
   font-weight: 520;
 }
 
-/* 链接结果 */
+/* 链接结果：可点击复制 */
 .sh-link {
   margin: var(--sp-2) 0 0;
   padding: var(--sp-3);
@@ -722,7 +729,19 @@ input:focus-visible,
   word-break: break-all;
   max-height: 84px;
   overflow-y: auto;
+  cursor: pointer;
   animation: fade-in var(--dur) var(--ease);
+  transition: border-color var(--dur) var(--ease);
+}
+.sh-link:hover { border-color: var(--ink-3); }
+.sh-link::after {
+  content: "点击复制完整链接";
+  display: block;
+  margin-top: var(--sp-2);
+  font-family: inherit;
+  font-size: var(--fs-5);
+  color: var(--ink-4);
+  letter-spacing: .02em;
 }
 
 /* ============================================================
