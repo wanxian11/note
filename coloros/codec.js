@@ -136,6 +136,12 @@
           el.removeAttribute(at.name);
         });
         if (tag === 'A' && !el.getAttribute('href')) { while (el.firstChild) node.insertBefore(el.firstChild, el); el.remove(); }
+        /* 统一在属性循环之后归一化：循环里逐属性处理时，源文本中排在 href 之后的
+           target/rel 会被默认分支删掉，导致「新标签打开」丢失、点击整页跳转。 */
+        if (tag === 'A' && el.getAttribute('href')) {
+          el.setAttribute('target', '_blank');
+          el.setAttribute('rel', 'noopener noreferrer');
+        }
       });
     })(root);
     return root.innerHTML;
