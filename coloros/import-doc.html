@@ -3,30 +3,82 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F6F5F2">
 <title>导入复刻文档 · 便签</title>
 <link rel="stylesheet" href="style.css">
+<style>
+/* 导入页专用：极少量页内样式，其余全部走 style.css 的 token */
+.doc-wrap { max-width: 680px; margin: 0 auto; padding: var(--sp-4) var(--sp-4) var(--sp-6); }
+.doc-actions { display: flex; gap: var(--sp-2); margin-top: var(--sp-4); }
+.doc-actions .rf-btn { flex: 1; padding: 0 var(--sp-4); }
+.doc-msg {
+  margin-top: var(--sp-3);
+  font-size: var(--fs-4);
+  color: var(--ink-2);
+  line-height: 1.6;
+  min-height: 20px;
+  text-align: center;
+}
+.doc-note {
+  margin-top: var(--sp-4);
+  font-size: var(--fs-5);
+  color: var(--ink-3);
+  line-height: 1.6;
+  text-align: center;
+}
+</style>
 </head>
 <body>
-<div style="max-width:760px;margin:0 auto;padding:20px 14px">
-  <div class="paper" data-note-color="paper" style="min-height:60vh">
+
+<div class="doc-wrap">
+  <header class="e-head" style="position:static;margin:0 calc(var(--sp-4) * -1)">
+    <button class="ib" id="btnBack" title="返回" aria-label="返回">
+      <svg class="ico"><use href="#i-back"/></svg>
+    </button>
+    <span class="e-meta">复刻自 ColorOS 便签分享文档</span>
+    <div class="e-acts">
+      <button class="ib" id="btnShareTop" title="复制分享链接" aria-label="复制分享链接">
+        <svg class="ico"><use href="#i-link"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="paper" data-note-color="paper">
     <div id="docPreview"></div>
-    <p style="color:var(--mut);font-size:13px;margin-top:18px">↑ 复刻自 ColorOS 便签分享文档（tiptap 结构 1:1 还原：H1/H2/H3、solid/dashed 分割线、11 张图、超链接）</p>
   </div>
-  <div style="display:flex;gap:10px;margin-top:16px">
-    <button id="btnImport" class="rf-btn" style="flex:1">＋ 导入我的便签</button>
-    <button id="btnShare" class="rf-btn" style="flex:1;background:var(--ink)">复制分享链接</button>
+
+  <div class="doc-actions">
+    <button id="btnImport" class="rf-btn">
+      <svg class="ico" style="width:17px;height:17px;display:inline-block;vertical-align:-3px;margin-right:6px"><use href="#i-plus"/></svg>导入我的便签
+    </button>
+    <button id="btnShare" class="rf-btn" style="background:var(--surface);color:var(--ink);border:1px solid var(--line)">复制分享链接</button>
   </div>
-  <div id="msg" style="margin-top:12px;font-size:13px;color:var(--mut)"></div>
+
+  <div class="doc-msg" id="msg" role="status" aria-live="polite"></div>
+
+  <p class="doc-note">结构与官方分享页逐节点一致：H1 / H2 / H3、实线与虚线分割线、11 张图、外部链接。</p>
 </div>
+
+<div class="toast" id="toast" hidden role="status" aria-live="polite"></div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M14.5 5.5L8 12l6.5 6.5"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10.5 13.5a4 4 0 0 0 5.7 0l2.6-2.6a4 4 0 0 0-5.7-5.7l-1.4 1.4"/><path d="M13.5 10.5a4 4 0 0 0-5.7 0l-2.6 2.6a4 4 0 0 0 5.7 5.7l1.4-1.4"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5.5v13M5.5 12h13"/></symbol>
+  </defs>
+</svg>
+
 <script src="codec.js"></script>
 <script src="db.js"></script>
 <script>
 var TITLE = '低保广告🚗高佣联盟一天1O-3O米不等，1米起秒提秒到';
 /* 复刻正文：结构与官方分享页逐节点一致（来源 notes.coloros.com/s/eQ7GZmEsT0Gn_1 渲染结果）
-   图片已转存本仓库 assets/（原 heytapcs 签名 URL 7 天过期） */
+   图片已转存本仓库 assets/（原 heytapcs 签名 URL 7 天过期）
+   注意：正文不放 <h1> —— 标题由页面 readTitle / titleInput 承载，否则阅读视图会出现双标题。
+   官方原文档结构 = 标题下直接接第一张图。 */
 var HTML =
-  '<h1>' + TITLE + '</h1>'
-  + '<img src="assets/ad1.jpg" alt="">'
+  '<img src="assets/ad1.jpg" alt="">'
   + '<h3>高佣联盟新增玩法 看一个广告0.8左右，备战双11，大放水冲冲冲</h3>'
   + '<hr style="border-top:1px solid #d5cfc0">'
   + '<h3>高佣联盟APP</h3>'
@@ -36,7 +88,7 @@ var HTML =
   + '<h3>或应用市场搜索【高佣联盟】下载注册，填写邀请码：3829</h3>'
   + '<h3>网购/外卖/出行 搜全网优惠券</h3>'
   + '<hr style="border-top:1px solid #d5cfc0">'
-  + '<h3>一台手机 1小时 10-30 块钱 工作室速冲了 ❗️❗️❗️ 不投米  一个广告5 毛 1块钱。无限看 最高养养机。别一直看。看5个 8个歇一会</h3>'
+  + '<h3>一台手机 1小时 <span style="white-space:nowrap">10-30</span> 块钱 工作室速冲了 ❗️❗️❗️ 不投米  一个广告5 毛 1块钱。无限看 最高养养机。别一直看。看5个 8个歇一会</h3>'
   + '<img src="assets/ad2.jpg" alt="">'
   + '<h2>视频教程↓</h2>'
   + '<h3><a href="https://ncnmh3zxlsvh.feishu.cn/wiki/D3tmwO4wTiF6OCkxSNMcktI9nUg" target="_blank" rel="noopener noreferrer">https://ncnmh3zxlsvh.feishu.cn/wiki/D3tmwO4wTiF6OCkxSNMcktI9nUg</a></h3>'
@@ -51,23 +103,56 @@ var HTML =
   + '<h3>或应用市场搜索【高佣联盟】下载注册，填写邀请码：38283984</h3>'
   + '<h3>网购/外卖/出行 搜全网优惠券</h3>';
 
-document.getElementById('docPreview').innerHTML = NF.sanitize(HTML);
+function toast(m) {
+  var t = document.getElementById('toast');
+  t.textContent = m; t.hidden = false;
+  clearTimeout(t._tm);
+  t._tm = setTimeout(function () { t.hidden = true; }, 2200);
+}
+
+var preview = document.getElementById('docPreview');
+preview.innerHTML = NF.sanitize(HTML);
+/* 文档预览用阅读视图的排版规则（与 style.css 的 .read-body 同源） */
+preview.className = 'read-body';
+preview.style.fontSize = 'var(--fs-3)';
 
 var msg = document.getElementById('msg');
+
+document.getElementById('btnBack').onclick = function () {
+  location.href = 'index.html';
+};
+
 document.getElementById('btnImport').onclick = function () {
   NDB.Notes.all('active').then(function (rows) {
-    if (rows.some(function (r) { return r.title === TITLE; })) { msg.textContent = '已经导入过了，去便签列表看 ✅'; return; }
+    if (rows.some(function (r) { return r.title === TITLE; })) {
+      msg.textContent = '已导入过，打开 index.html 就能看到';
+      return null;
+    }
     return NDB.Notes.create({ title: TITLE, raw_text: HTML, color: 'paper' }).then(function () {
-      msg.textContent = '已导入！打开 index.html 即可在列表看到、继续编辑、再次分享 ✅';
+      msg.textContent = '✓ 已导入，打开 index.html 可编辑、可再分享';
     });
   });
 };
-document.getElementById('btnShare').onclick = function () {
+
+function doShare() {
   NF.encode({ v: 1, title: TITLE, html: HTML, ts: Date.now() }).then(function (enc) {
     var link = 'https://wanxian11.github.io/note/coloros/#' + enc;
-    navigator.clipboard.writeText(link).then(function () { msg.textContent = '分享链接已复制（' + (link.length/1024).toFixed(1) + ' KB）'; });
+    var done = function () { toast('分享链接已复制（' + (link.length / 1024).toFixed(1) + ' KB）'); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(link).then(done, function () { fallback(); });
+    } else fallback();
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = link;
+      ta.style.cssText = 'position:fixed;left:-9999px';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch (e) { toast('复制失败，请手动复制'); }
+      document.body.removeChild(ta);
+    }
   });
-};
+}
+document.getElementById('btnShare').onclick = doShare;
+document.getElementById('btnShareTop').onclick = doShare;
 </script>
 </body>
 </html>
