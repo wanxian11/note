@@ -285,26 +285,47 @@ function ghPutShare(id, enc, token) {
     return id;
   });
 }
-/* 读取：三个源依次尝试。
-   第 3 个是站点自身（与页面同域），raw/jsdelivr 在国内不通时靠它兜底。
-   页面在 /note/coloros/，文件在仓库根 shares/ → 相对路径必须是 ../shares/。 */
+/* 单个源：带超时的 JSON 获取。超时很重要 —— 挂起不通的源不能让调用方无限等。 */
+function fetchJsonTimeout(url, ms) {
+  return new Promise(function (res, rej) {
+    var settled = false;
+    var tm = setTimeout(function () { settled = true; rej(new Error('timeout')); }, ms);
+    fetch(url).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (j) {
+      if (settled) return;
+      settled = true; clearTimeout(tm); res(j);
+    })['catch'](function (e) {
+      if (settled) return;
+      settled = true; clearTimeout(tm); rej(e);
+    });
+  });
+}
+
+/* 读取分享内容：三源并行，谁先拿到有效内容谁赢。
+   串行链会被「挂起不通」的源永久卡死（raw.githubusercontent 在国内常见），
+   并行竞速下同域兜底通常 <1s 先到，慢源直接忽略。
+   第 3 源是站点自身（与页面同域，国内可达）；页面在 /note/coloros/，
+   文件在仓库根 shares/ → 相对路径必须是 ../shares/。 */
 function ghGetShare(id) {
   var urls = [
     'https://raw.githubusercontent.com/' + GH_REPO + '/' + GH_BRANCH + '/shares/' + id + '.json',
     'https://cdn.jsdelivr.net/gh/' + GH_REPO + '@' + GH_BRANCH + '/shares/' + id + '.json',
     '../shares/' + id + '.json'
   ];
-  var lastErr = new Error('内容不存在');
-  return urls.reduce(function (chain, url) {
-    return chain['catch'](function () {
-      return fetch(url).then(function (r) {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.json();
-      })['catch'](function (e) { throw e; });
+  return new Promise(function (res, rej) {
+    var pending = urls.length, firstErr = null;
+    urls.forEach(function (u) {
+      fetchJsonTimeout(u, 8000).then(function (j) {
+        if (j && j.e) { res(j.e); return; }
+        firstErr = firstErr || new Error('分享内容损坏');
+        if (--pending === 0) rej(firstErr);
+      })['catch'](function (e) {
+        firstErr = firstErr || e;
+        if (--pending === 0) rej(firstErr);
+      });
     });
-  }, Promise.reject(lastErr)).then(function (j) {
-    if (!j || !j.e) throw new Error('分享内容损坏');
-    return j.e;
   });
 }
 function ghVerify(token) {
