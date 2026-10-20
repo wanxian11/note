@@ -121,6 +121,7 @@ input:focus-visible,
 /* ============================================================
    2. 列表页
    ============================================================ */
+/* 桌面端列表也只在窄列里，不用撑满 */
 #listView {
   max-width: 720px; margin: 0 auto;
   padding: var(--sp-5) var(--sp-4) 100px;
@@ -303,6 +304,9 @@ input:focus-visible,
 .fab:hover { transform: translateY(-1px); }
 .fab:active { transform: scale(.95); }
 .fab .ico { width: 22px; height: 22px; stroke-width: 1.9; }
+
+/* 列表底部留出 FAB 高度，避免最后一张卡被遮 */
+.grid { padding-bottom: 72px; }
 
 /* ============================================================
    3. 编辑页
@@ -739,6 +743,8 @@ input:focus-visible,
   pointer-events: none;
   animation: toast-in 200ms var(--ease);
 }
+/* 分享面板打开时，toast 上移到面板之上，不遮链接 */
+.sheet:not([hidden]) ~ .toast { bottom: calc(56vh + 12px); }
 @keyframes toast-in {
   from { opacity: 0; transform: translateX(-50%) translateY(6px); }
 }
@@ -756,6 +762,14 @@ input:focus-visible,
 @media (min-width: 700px) {
   #listView { padding-top: var(--sp-6); }
   .card { min-height: 128px; }
+}
+
+/* 桌面：卡片放宽，避免一行只放得下几个字 */
+@media (min-width: 900px) {
+  #listView { max-width: 880px; }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(216px, 1fr)); gap: var(--sp-4); }
+  .card { min-height: 140px; padding: var(--sp-4) var(--sp-4) var(--sp-3) var(--sp-5); }
+  .card-b { -webkit-line-clamp: 5; }
 }
 
 /* 减少动态效果 */
