@@ -398,6 +398,11 @@ $('readCopyBtn').onclick = function () { copyText(location.href); };
 
 (async function boot() {
   var h = decodeURIComponent(location.hash.slice(1));
+  /* 短路由：#aidoge-tutorial 直接打开内置教程的阅读态，无需长链接 */
+  if (h === 'aidoge-tutorial') {
+    await openShared(AIDOGE_TUTORIAL.html, AIDOGE_TUTORIAL.title, Date.now(), false);
+    return;
+  }
   if (h.length > 6) {
     try {
       var data = await NF.decode(h);
