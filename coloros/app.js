@@ -285,12 +285,14 @@ function ghPutShare(id, enc, token) {
     return id;
   });
 }
-/* 读取：三个源依次尝试 */
+/* 读取：三个源依次尝试。
+   第 3 个是站点自身（与页面同域），raw/jsdelivr 在国内不通时靠它兜底。
+   页面在 /note/coloros/，文件在仓库根 shares/ → 相对路径必须是 ../shares/。 */
 function ghGetShare(id) {
   var urls = [
     'https://raw.githubusercontent.com/' + GH_REPO + '/' + GH_BRANCH + '/shares/' + id + '.json',
     'https://cdn.jsdelivr.net/gh/' + GH_REPO + '@' + GH_BRANCH + '/shares/' + id + '.json',
-    'shares/' + id + '.json'
+    '../shares/' + id + '.json'
   ];
   var lastErr = new Error('内容不存在');
   return urls.reduce(function (chain, url) {
