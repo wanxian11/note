@@ -166,7 +166,8 @@
     <button class="sh-item" id="shText">以文字形式分享</button>
     <button class="sh-item" id="shPic">以图片形式分享</button>
     <div class="sh-pw" id="shPwRow" hidden>
-      <input type="password" id="shPwInput" placeholder="查看密码，可留空" aria-label="查看密码">
+      <label class="sh-pw-label" for="shPwInput">查看密码</label>
+      <input type="password" id="shPwInput" placeholder="留空 = 不加密" aria-label="查看密码，留空则不加密">
       <button id="shPwGo">生成</button>
     </div>
     <div class="sh-link" id="shLinkBox" hidden></div>
