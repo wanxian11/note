@@ -343,14 +343,12 @@ state.editor = new NED.Editor($('editor'), function () {
 });
 var readBuf = null;
 async function openShared(html, title, ts, pw) {
-  window.__sharedNote = { title: title, html: html, ts: ts };
   $('listView').hidden = true; $('editView').hidden = true; $('fab').hidden = true;
   $('readView').hidden = false;
   $('readTitle').textContent = title || '';
   $('readMeta').textContent = (ts ? fmt(ts) + ' · 来自分享' : '来自分享');
   $('readPaper').innerHTML = NF.sanitize(html || '');
   document.title = (title || '便签') + ' · 来自分享';
-  $('readSaveBtn').hidden = false;
   if (pw) { $('readPwBtn').hidden = false; }
 }
 $('readPwBtn').onclick = function () {
@@ -358,11 +356,6 @@ $('readPwBtn').onclick = function () {
   if (!pw) return;
   NF.decodeEncrypted(readBuf, pw).then(function (n) { openShared(n.html, n.title, n.ts); })
     .catch(function (e) { alert(e.message || '密码错误'); });
-};
-$('readSaveBtn').onclick = async function () {
-  var n = window.__sharedNote;
-  await NDB.Notes.create({ title: n.title, raw_text: NF.sanitize(n.html) });
-  location.hash = ''; location.reload();
 };
 $('readCopyBtn').onclick = function () { copyText(location.href); };
 
@@ -378,10 +371,9 @@ $('readCopyBtn').onclick = function () { copyText(location.href); };
         $('readTitle').textContent = '🔒 这篇便签已加密';
         $('readMeta').textContent = '需要作者提供的查看密码';
         $('readPaper').innerHTML = '<p style="opacity:.6">点击下方按钮输入密码解锁</p>';
-        $('readPwBtn').hidden = false; $('readSaveBtn').hidden = true;
+        $('readPwBtn').hidden = false;
         return;
       }
-      window.__sharedNote = data;
       await openShared(data.html, data.title, data.ts, h.indexOf('2.') === 0);
     } catch (e) { alert('打开失败：' + e.message); }
     return;
