@@ -746,6 +746,30 @@ input:focus-visible,
   font-weight: 520;
 }
 
+/* 固定链接选项行（分享面板内） */
+.sh-live {
+  padding: var(--sp-3) 0 var(--sp-1);
+  animation: fade-in var(--dur) var(--ease);
+}
+.sh-live-label {
+  display: flex; align-items: center; gap: var(--sp-2);
+  font-size: var(--fs-4);
+  color: var(--ink-2);
+  font-weight: 520;
+  cursor: pointer;
+}
+.sh-live-label input {
+  width: 17px; height: 17px;
+  accent-color: var(--ink);
+  cursor: pointer;
+}
+.sh-live-hint {
+  margin: 4px 0 0 27px;
+  font-size: var(--fs-5);
+  color: var(--ink-3);
+  line-height: 1.55;
+}
+
 /* GitHub 短链设置行 */
 .sh-gh {
   margin-top: var(--sp-3);
