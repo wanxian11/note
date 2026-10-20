@@ -119,13 +119,16 @@
   };
 
   var Folders = {
+    /* 不再创建名为「所有笔记」的 default 分类。
+       列表里的「全部笔记」是渲染层加的虚拟汇总项，库里再存一个同名分类会产生两个语义重复的胶囊。
+       这里只做兜底清理：早期版本建过的 default 行删掉。 */
     ensure: function () {
       return Folders.all().then(function (fs) {
-        if (!fs.some(function (f) { return f.guid === 'default'; })) {
-          return tx('folders', 'readwrite', function (s) {
-            return s.put({ guid: 'default', name: '所有笔记', system: 1 });
-          });
-        }
+        var stale = fs.filter(function (f) { return f.guid === 'default'; });
+        if (!stale.length) return null;
+        return Promise.all(stale.map(function (f) {
+          return tx('folders', 'readwrite', function (s) { return s.delete(f.guid); });
+        }));
       });
     },
     all: function () {
