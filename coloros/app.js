@@ -241,60 +241,150 @@ function shareNote() {
 $('shareBtn').onclick = shareNote;
 $('shCancel').onclick = $('shareMask').onclick = function () { $('shareSheet').hidden = true; };
 
+/* ---------- GitHub 短链：分享内容存进自己的仓库，链接只带 11 位短 ID ----------
+   存到 wanxian11/note 的 shares/<id>.json；读取走 raw.githubusercontent（CORS 开放），
+   jsDelivr 与站点自身目录作为备用源。ID 由内容哈希得出：同内容复用同一链接、旧链接永不失效。 */
+var GH_REPO = 'wanxian11/note';
+var GH_BRANCH = 'main';
+
+function ghToken() {
+  try { return localStorage.getItem('nf.gh.token') || ''; } catch (e) { return ''; }
+}
+function ghTokenSave(t) {
+  try { localStorage.setItem('nf.gh.token', t); } catch (e) {}
+}
+/* 内容哈希做短 ID：11 位，同内容同链接 */
+function shortIdFor(enc) {
+  return crypto.subtle.digest('SHA-256', new TextEncoder().encode(enc)).then(function (buf) {
+    var hex = '';
+    Array.prototype.slice.call(new Uint8Array(buf), 0, 5).forEach(function (b) {
+      hex += ('0' + b.toString(16)).slice(-2);
+    });
+    return 'n' + hex;
+  });
+}
+function ghPutShare(id, enc, token) {
+  var json = JSON.stringify({ e: enc });
+  /* GitHub Contents API 要求标准 base64；unescape+encodeURIComponent 处理中文 */
+  var b64 = btoa(unescape(encodeURIComponent(json)));
+  return fetch('https://api.github.com/repos/' + GH_REPO + '/contents/shares/' + id + '.json', {
+    method: 'PUT',
+    headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json' },
+    body: JSON.stringify({ message: 'share ' + id, content: b64, branch: GH_BRANCH })
+  }).then(function (r) {
+    /* 422 = 文件已存在且请求未带 sha。ID 由内容哈希得出 → 内容必然相同，视为已成功 */
+    if (r.status === 422) return id;
+    if (!r.ok) {
+      return r.json()['catch'](function () { return {}; }).then(function (j) {
+        var msg = j && j.message ? j.message : 'GitHub ' + r.status;
+        if (r.status === 401) msg = '令牌无效或已过期';
+        if (r.status === 403 || r.status === 404) msg = '令牌没有这个仓库的写入权限';
+        throw new Error(msg);
+      });
+    }
+    return id;
+  });
+}
+/* 读取：三个源依次尝试 */
+function ghGetShare(id) {
+  var urls = [
+    'https://raw.githubusercontent.com/' + GH_REPO + '/' + GH_BRANCH + '/shares/' + id + '.json',
+    'https://cdn.jsdelivr.net/gh/' + GH_REPO + '@' + GH_BRANCH + '/shares/' + id + '.json',
+    'shares/' + id + '.json'
+  ];
+  var lastErr = new Error('内容不存在');
+  return urls.reduce(function (chain, url) {
+    return chain['catch'](function () {
+      return fetch(url).then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })['catch'](function (e) { throw e; });
+    });
+  }, Promise.reject(lastErr)).then(function (j) {
+    if (!j || !j.e) throw new Error('分享内容损坏');
+    return j.e;
+  });
+}
+function ghVerify(token) {
+  return fetch('https://api.github.com/user', { headers: { 'Authorization': 'Bearer ' + token } })
+    .then(function (r) {
+      if (r.status === 401) throw new Error('令牌无效，请重新复制');
+      if (!r.ok) throw new Error('GitHub ' + r.status);
+      return r.json();
+    });
+}
+
 function shareLink(pw) {
   var r = state.current;
   var payload = { v: 1, title: r.title || '', html: r.raw_text || ('<p>' + esc(r.text) + '</p>'), ts: r.update_time };
   var base = location.href.split('#')[0];
   var p = pw ? NF.encodeEncrypted(payload, pw) : NF.encode(payload);
+  state.lastSharePw = pw || null;
   p.then(function (enc) {
-    var link = base + '#' + enc;
-    showShareLink(link, pw);
+    var long = base + '#' + enc;
+    var token = ghToken();
+    var isLocal = /^https?:\/\/(127\.0\.0\.1|localhost)/.test(long);
+    if (!token || isLocal) { showShareLink(long, pw, false); return; }
+    /* 有令牌 → 一律走短链（不论内容长短，每个文档都短） */
+    var box = $('shLinkBox');
+    box.hidden = false;
+    box.textContent = '正在生成短链接…';
+    shortIdFor(enc).then(function (id) {
+      return ghPutShare(id, enc, token).then(function () {
+        var short = base.replace(/index\.html$/, '') + '#s=' + id;
+        showShareLink(short, pw, true);
+      });
+    })['catch'](function (e) {
+      showShareLink(long, pw, false);
+      toast('短链失败（' + String(e.message || e).slice(0, 30) + '），已复制完整链接');
+    });
   })['catch'](function (e) { toast('生成失败：' + e.message); });
 }
 
-/* 展示分享链接。长链（>500字符）自动转 TinyURL 短链，短链失败则回退长链。 */
-function showShareLink(link, pw) {
+function showShareLink(link, pw, isShort) {
   var box = $('shLinkBox');
-  var kb = (link.length / 1024).toFixed(1);
   var loopback = /^https?:\/\/(127\.0\.0\.1|localhost)/.test(link);
-  var finish = function (finalLink, isShort) {
-    box.hidden = false;
-    box.textContent = finalLink;
-    copyText(finalLink);
-    var w2 = document.getElementById('loopWarn');
-    if (w2) w2.remove();
-    if (loopback) {
-      var warn = document.createElement('div');
-      warn.id = 'loopWarn';
-      warn.style.cssText = 'margin:8px 0 0;padding:10px 12px;border-radius:8px;background:#FBF1EF;border:1px solid #E8C7C2;color:#8C3B32;font-size:12.5px;line-height:1.6';
-      warn.innerHTML = '⚠️ 这是<b>本机地址</b>，只有你自己打得开。部署到线上后生成的链接才会带正确域名。';
-      $('shLinkBox').parentNode.insertBefore(warn, $('shLinkBox').nextSibling);
-    } else if (isShort) {
-      toast('短链接已复制，直接发就行 ✓');
-    } else {
-      toast('链接已复制（' + kb + ' KB）' + (pw ? ' · 需密码查看' : ''));
-    }
-  };
-  /* 链接短于 500 字符本身就能直接发，不再请求短链服务 */
-  if (link.length <= 500) { finish(link, false); return; }
   box.hidden = false;
-  box.textContent = '正在生成短链接…';
-  fetch('https://tinyurl.com/api-create.php?url=' + encodeURIComponent(link))
-    .then(function (res) {
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      return res.text();
-    })
-    .then(function (short) {
-      short = (short || '').trim();
-      /* 校验返回确实是 tinyurl 短链，防止拿到错误页 */
-      if (/^https:\/\/tinyurl\.com\/\w+$/.test(short)) finish(short, true);
-      else finish(link, false);
-    })
-    ['catch'](function () {
-      finish(link, false);
-      toast('短链服务不可用，已复制完整链接');
-    });
+  box.textContent = link;
+  copyText(link);
+  var w2 = document.getElementById('loopWarn');
+  if (w2) w2.remove();
+  /* 没有令牌时引导设置（短链需要一次性授权） */
+  $('shGhRow').hidden = !!ghToken();
+  if (loopback) {
+    var warn = document.createElement('div');
+    warn.id = 'loopWarn';
+    warn.style.cssText = 'margin:8px 0 0;padding:10px 12px;border-radius:8px;background:#FBF1EF;border:1px solid #E8C7C2;color:#8C3B32;font-size:12.5px;line-height:1.6';
+    warn.innerHTML = '⚠️ 这是<b>本机地址</b>，只有你自己打得开。部署到线上后生成的链接才会带正确域名。';
+    $('shLinkBox').parentNode.insertBefore(warn, $('shLinkBox').nextSibling);
+  } else if (isShort) {
+    toast('短链接已复制（' + link.length + ' 字符），直接发就行 ✓');
+  } else {
+    var kb = (link.length / 1024).toFixed(1);
+    toast('链接已复制（' + kb + ' KB）' + (pw ? ' · 需密码查看' : ''));
+  }
 }
+
+/* 保存 GitHub 令牌 → 校验 → 立刻把当前这条重新生成成短链 */
+$('ghSave').onclick = function () {
+  var t = $('ghToken').value.trim();
+  var err = $('ghErr');
+  if (!t) { err.hidden = false; err.textContent = '先粘贴令牌'; return; }
+  err.hidden = true;
+  $('ghSave').textContent = '验证中…';
+  ghVerify(t).then(function () {
+    ghTokenSave(t);
+    $('ghSave').textContent = '保存';
+    $('ghToken').value = '';
+    $('shGhRow').hidden = true;
+    toast('已保存，正在生成短链接');
+    shareLink(state.lastSharePw);
+  })['catch'](function (e) {
+    $('ghSave').textContent = '保存';
+    err.hidden = false;
+    err.textContent = e.message;
+  });
+};
 $('shLink').onclick = function () { $('shPwRow').hidden = false; $('shPwInput').focus(); };
 $('shPwGo').onclick = function () {
   var pw = $('shPwInput').value.trim();
@@ -401,6 +491,33 @@ $('readCopyBtn').onclick = function () { copyText(location.href); };
   /* 短路由：#aidoge-tutorial 直接打开内置教程的阅读态，无需长链接 */
   if (h === 'aidoge-tutorial') {
     await openShared(AIDOGE_TUTORIAL.html, AIDOGE_TUTORIAL.title, Date.now(), false);
+    return;
+  }
+  /* GitHub 短链：#s=<id> —— 内容在仓库里，按需拉取 */
+  if (h.indexOf('s=') === 0) {
+    var sid = h.slice(2);
+    $('listView').hidden = true; $('editView').hidden = true; $('fab').hidden = true;
+    $('readView').hidden = false;
+    $('readTitle').textContent = '加载中…';
+    $('readMeta').textContent = '来自分享';
+    $('readPaper').innerHTML = '';
+    try {
+      var enc = await ghGetShare(sid);
+      var d = await NF.decode(enc);
+      if (d && d.__enc) {
+        readBuf = d.__enc;
+        $('readTitle').textContent = '🔒 这篇便签已加密';
+        $('readMeta').textContent = '需要作者提供的查看密码';
+        $('readPaper').innerHTML = '<p style="opacity:.6">点击下方按钮输入密码解锁</p>';
+        $('readPwBtn').hidden = false;
+        return;
+      }
+      await openShared(d.html, d.title, d.ts, false);
+    } catch (e) {
+      $('readTitle').textContent = '打不开这条分享';
+      $('readMeta').textContent = '';
+      $('readPaper').innerHTML = '<p style="opacity:.65">内容不存在或网络不通。<br>可以请分享者重新生成一条链接。</p>';
+    }
     return;
   }
   if (h.length > 6) {
