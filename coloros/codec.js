@@ -100,7 +100,7 @@
     (v || '').split(';').forEach(function (d) {
       var kv = d.split(':'); if (kv.length < 2) return;
       var k = kv[0].trim().toLowerCase(), val = kv.slice(1).join(':').trim();
-      if (!/^(color|background-color|text-align|font-weight|font-style|text-decoration|border-top|margin)$/.test(k)) return;
+      if (!/^(color|background-color|text-align|font-weight|font-style|text-decoration|border-top|margin|white-space)$/.test(k)) return;
       if (!/^[a-z0-9#.,()%\s-]+$/i.test(val)) return;
       keep.push(k + ':' + val);
     });
