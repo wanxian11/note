@@ -904,3 +904,56 @@ input:focus-visible,
   body { background: #fff; }
   .paper, .card { box-shadow: none; border: none; }
 }
+
+/* ============================================================
+   图片编辑：点选 / 换图 / 删除 / 缩放
+   （正文图片本身是 contenteditable 里的 <img>，需要显式给出可选中的反馈）
+   ============================================================ */
+#editor img { cursor: pointer; -webkit-user-drag: none; }
+#editor img.img-sel {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--ink) 8%, transparent);
+}
+.paper[data-note-color=dark] #editor img.img-sel {
+  outline-color: #E8E5DE;
+  box-shadow: 0 0 0 6px rgba(232,229,222,.16);
+}
+
+/* 悬浮操作条：墨黑胶囊 + 毛玻璃，跟随图片位置 */
+.img-bar {
+  position: fixed;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--ink) 94%, transparent);
+  box-shadow: 0 8px 24px rgba(27,26,23,.28), 0 1px 0 rgba(255,255,255,.08) inset;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  font-size: var(--fs-4);
+  line-height: 1;
+  color: var(--on-accent);
+  animation: imgbar-in .14s var(--ease, ease);
+}
+.img-bar[hidden] { display: none; }
+.img-bar button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 7px 11px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color .12s var(--ease, ease);
+}
+.img-bar button:hover { background: rgba(255,255,255,.16); }
+.img-bar button:active { background: rgba(255,255,255,.26); }
+.img-bar button[data-a="del"] { color: #FF9E93; }
+.img-bar button[data-a="del"]:hover { background: rgba(255,158,147,.18); }
+@keyframes imgbar-in { from { opacity: 0; transform: translateY(4px) scale(.97); } to { opacity: 1; transform: none; } }
+
+@media print { .img-bar { display: none !important; } }

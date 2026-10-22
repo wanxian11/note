@@ -202,7 +202,7 @@ var TOOLBAR = [
   ['ol', function () { state.editor.cmd('insertOrderedList'); }],
   ['todo', function () { state.editor.checklist(); }],
   ['hr', function () { state.editor.root.focus(); document.execCommand('insertHTML', false, '<hr>'); }],
-  ['img', function () { $('imgFile').click(); }],
+  ['img', function () { state.editor.clearSwap(); $('imgFile').click(); }],
   ['center', function () { state.editor.align('center'); }],
   ['undo', function () { state.editor.cmd('undo'); }],
   ['redo', function () { state.editor.cmd('redo'); }]
