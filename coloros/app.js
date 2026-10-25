@@ -202,7 +202,7 @@ var TOOLBAR = [
   ['ol', function () { state.editor.cmd('insertOrderedList'); }],
   ['todo', function () { state.editor.checklist(); }],
   ['hr', function () { state.editor.root.focus(); document.execCommand('insertHTML', false, '<hr>'); }],
-  ['img', function () { state.editor.clearSwap(); $('imgFile').click(); }],
+  ['img', function () { $('imgFile').click(); }],
   ['center', function () { state.editor.align('center'); }],
   ['undo', function () { state.editor.cmd('undo'); }],
   ['redo', function () { state.editor.cmd('redo'); }]
@@ -264,6 +264,69 @@ function shareNote() {
 }
 $('shareBtn').onclick = shareNote;
 $('shCancel').onclick = $('shareMask').onclick = function () { $('shareSheet').hidden = true; };
+
+/* ---------- 备份 / 恢复：本地便签按源隔离，换设备或换域名时用文件搬 ---------- */
+function bkErr(m) {
+  var e = $('bkErr');
+  if (!m) { e.hidden = true; e.textContent = ''; return; }
+  e.textContent = m; e.hidden = false;
+}
+$('backupBtn').onclick = function () {
+  bkErr(null);
+  $('backupSheet').hidden = false;
+};
+$('bkCancel').onclick = $('backupMask').onclick = function () { $('backupSheet').hidden = true; };
+
+$('bkExport').onclick = function () {
+  NDB.Notes.all().then(function (rows) {
+    var pack = { app: 'coloros-notes', v: 1, ts: Date.now(), count: rows.length, notes: rows };
+    var blob = new Blob([JSON.stringify(pack, null, 2)], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'bianqian-' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+    $('backupSheet').hidden = true;
+    toast('已导出 ' + rows.length + ' 条便签');
+  }, function () { bkErr('读取本地便签失败，可能是浏览器禁用了存储'); });
+};
+
+$('bkImport').onclick = function () { $('bkFile').click(); };
+$('bkFile').onchange = function () {
+  var f = this.files && this.files[0];
+  this.value = '';
+  if (!f) return;
+  var fr = new FileReader();
+  fr.onload = function () {
+    var data;
+    try { data = JSON.parse(String(fr.result)); }
+    catch (e) { bkErr('这不是有效的备份文件（JSON 解析失败）'); return; }
+    var rows = Array.isArray(data) ? data : (data && Array.isArray(data.notes) ? data.notes : null);
+    if (!rows) { bkErr('备份文件里没有找到便签数据'); return; }
+    bkErr(null);
+    NDB.Notes.all().then(function (cur) {
+      var have = {};
+      cur.forEach(function (r) { have[r.local_id] = 1; });
+      var added = 0, copy = 0, skip = 0;
+      return rows.reduce(function (p, r) {
+        return p.then(function () {
+          if (!r || typeof r !== 'object' || (!r.raw_text && !r.text)) { skip++; return; }
+          if (have[r.local_id]) { r = Object.assign({}, r, { local_id: null }); copy++; }
+          return NDB.Notes.importRow(r).then(function (w) { have[w.local_id] = 1; added++; });
+        });
+      }, Promise.resolve()).then(function () { return { added: added, copy: copy, skip: skip }; });
+    }).then(function (r) {
+      $('backupSheet').hidden = true;
+      renderList();
+      toast('已恢复 ' + r.added + ' 条' + (r.copy ? '（' + r.copy + ' 条建成副本）' : '') +
+            (r.skip ? '，跳过 ' + r.skip + ' 条空记录' : ''));
+    }, function () { bkErr('写入失败，可能是浏览器存储空间不足'); });
+  };
+  fr.onerror = function () { bkErr('读取文件失败'); };
+  fr.readAsText(f);
+};
 
 /* ---------- GitHub 短链：分享内容存进自己的仓库，链接只带 11 位短 ID ----------
    存到 wanxian11/note 的 shares/<id>.json；读取走 raw.githubusercontent（CORS 开放），
