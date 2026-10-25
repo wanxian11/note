@@ -118,10 +118,9 @@ document.getElementById('btnBack').onclick = function () {
   location.href = 'index.html';
 };
 
-/* 站点根地址跟随当前访问域名：github.io 与自定义域名都自动适配，file:// 预览时回落到正式域名 */
+/* 站点根地址由 NF.base() 统一决定：自定义域名生效后优先用域名 */
 function pageBase() {
-  if (!/^https?:$/.test(location.protocol)) return 'https://zxkol77.com/note/coloros/';
-  return location.origin + location.pathname.replace(/[^/]*$/, '');
+  return NF.base();
 }
 
 function doShare() {
