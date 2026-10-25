@@ -118,9 +118,15 @@ document.getElementById('btnBack').onclick = function () {
   location.href = 'index.html';
 };
 
+/* 站点根地址跟随当前访问域名：github.io 与自定义域名都自动适配，file:// 预览时回落到正式域名 */
+function pageBase() {
+  if (!/^https?:$/.test(location.protocol)) return 'https://zxkol77.com/note/coloros/';
+  return location.origin + location.pathname.replace(/[^/]*$/, '');
+}
+
 function doShare() {
   NF.encode({ v: 1, title: TITLE, html: HTML, ts: Date.now() }).then(function (enc) {
-    var link = 'https://wanxian11.github.io/note/coloros/#' + enc;
+    var link = pageBase() + '#' + enc;
     var done = function (short) {
       toast(short ? '短链接已复制，直接发就行 ✓' : '分享链接已复制（' + (link.length / 1024).toFixed(1) + ' KB）');
     };
