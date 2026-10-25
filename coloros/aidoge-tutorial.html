@@ -69,9 +69,15 @@ preview.className = 'read-body';
 var msg = document.getElementById('msg');
 document.getElementById('btnBack').onclick = function () { location.href = 'index.html'; };
 
+/* 站点根地址跟随当前访问域名：github.io 与自定义域名都自动适配，file:// 预览时回落到正式域名 */
+function pageBase() {
+  if (!/^https?:$/.test(location.protocol)) return 'https://zxkol77.com/note/coloros/';
+  return location.origin + location.pathname.replace(/[^/]*$/, '');
+}
+
 function doShare() {
-  /* 教程是内置固定内容，分享直接给短路由（41 字符），不再编码进链接 */
-  var link = 'https://wanxian11.github.io/note/coloros/aidoge.html';
+  /* 教程是内置固定内容，分享直接给短路由，不再编码进链接 */
+  var link = pageBase() + 'aidoge.html';
   var done = function () { toast('短链接已复制，直接发朋友圈 ✓'); };
   var fallback = function () {
     var ta = document.createElement('textarea');
