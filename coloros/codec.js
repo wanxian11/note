@@ -147,8 +147,39 @@
     return root.innerHTML;
   }
 
+  /* ---------------- 分享链接的站点根地址 ----------------
+     自定义域名生效后，所有分享链接都要用它。规则：
+       1) 在域名下打开过一次 → 写入标记；
+       2) 此后即使从 github.io 的老书签进来，也一律输出域名链接；
+       3) 从未在域名下打开过 → 仍用当前地址，避免分享出打不开的链接。 */
+  var CANON_HOST = 'zxkol77.com';
+  var CANON_BASE = 'https://' + CANON_HOST + '/note/coloros/';
+
+  function canonSeen() {
+    var onCanon = (global.location ? location.hostname : '') === CANON_HOST;
+    try {
+      if (onCanon) { localStorage['nf.canon'] = '1'; return true; }
+      return localStorage['nf.canon'] === '1';
+    } catch (e) { return onCanon; }
+  }
+
+  /* /note/coloros、/note/coloros/index.html、/note/coloros/ 都归一成目录形式 */
+  function dirOf(pathname) {
+    var p = pathname || '/';
+    if (/\/$/.test(p)) return p;
+    if (/\.html?$/i.test(p)) return p.replace(/[^/]*$/, '');
+    return p + '/';
+  }
+
+  function base() {
+    if (!global.location || !/^https?:$/.test(location.protocol)) return CANON_BASE;
+    var seen = canonSeen(); /* 必须无条件调用：在域名下打开时由它写入标记 */
+    if (/(^|\.)github\.io$/.test(location.hostname) && seen) return CANON_BASE;
+    return location.origin + dirOf(location.pathname);
+  }
+
   global.NF = {
     encode: encode, decode: decode, encodeEncrypted: encodeEncrypted, decodeEncrypted: decodeEncrypted,
-    b64u: b64u, unb64u: unb64u, sanitize: sanitize, safeSrc: safeSrc
+    b64u: b64u, unb64u: unb64u, sanitize: sanitize, safeSrc: safeSrc, base: base
   };
 })(typeof globalThis !== 'undefined' ? globalThis : this);
