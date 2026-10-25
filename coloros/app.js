@@ -453,7 +453,7 @@ function ghVerify(token) {
 function shareLink(pw, live) {
   var r = state.current;
   var payload = { v: 1, title: r.title || '', html: r.raw_text || ('<p>' + esc(r.text) + '</p>'), ts: Date.now() };
-  var base = location.href.split('#')[0];
+  var base = NF.base();
   var p = pw ? NF.encodeEncrypted(payload, pw) : NF.encode(payload);
   state.lastSharePw = pw || null;
   state.lastShareLive = !!live;
