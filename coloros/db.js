@@ -119,6 +119,26 @@
         return tx('rich_notes', 'readwrite', function (s) { return s.put(r); }).then(function () { return r; });
       });
     },
+    /* 备份恢复：原样写回并保留原始时间戳；id 已存在时换新 id，避免覆盖现有便签 */
+    importRow: function (row) {
+      row = row || {};
+      var raw = row.raw_text || row.text || '';
+      var out = {
+        local_id: row.local_id || uid(),
+        folder_id: row.folder_id || 'default',
+        title: row.title || '',
+        text: toText(raw),
+        raw_text: raw,
+        color: row.color || 'paper',
+        state: 0,
+        encrypted: 0,
+        deleted: 0,
+        recycle_time: row.recycle_time > 0 ? row.recycle_time : 0,
+        create_time: row.create_time || Date.now(),
+        update_time: row.update_time || Date.now()
+      };
+      return tx('rich_notes', 'readwrite', function (s) { return s.put(out); }).then(function () { return out; });
+    },
     emptyTrash: function () {
       return Notes.all('trash').then(function (rows) {
         return Promise.all(rows.map(function (r) { return Notes.purge(r.local_id); }));
