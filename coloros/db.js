@@ -111,11 +111,14 @@
     purge: function (id) {
       return tx('rich_notes', 'readwrite', function (s) { return s.delete(id); });
     },
-    /* 记住固定链接 id：只补字段不动 update_time（分享不该让便签在列表里跳位） */
-    setLive: function (id, liveId) {
+    /* 记住固定链接元信息：只补字段不动 update_time（分享不该让便签在列表里跳位）
+       live_pw / live_enc 供「保存即同步」重写同一个 shares 文件 */
+    setLive: function (id, liveId, livePw, liveEnc) {
       return Notes.get(id).then(function (r) {
         if (!r) return null;
         r.live_id = liveId;
+        r.live_pw = livePw || '';
+        r.live_enc = !!liveEnc;
         return tx('rich_notes', 'readwrite', function (s) { return s.put(r); }).then(function () { return r; });
       });
     },
