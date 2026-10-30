@@ -146,6 +146,7 @@
   <header class="e-head">
     <span class="e-meta" id="readMeta"></span>
     <div class="e-acts">
+      <span id="readLive" hidden style="font-size:12px;line-height:1;padding:5px 9px;border-radius:999px;background:#EAF3EC;color:#3C6B47;border:1px solid #CFE3D4;white-space:nowrap;margin-right:6px">● 实时同步</span>
       <button class="ib" id="readCopyBtn" title="复制链接" aria-label="复制链接">
         <svg class="ico"><use href="#i-link"/></svg>
       </button>
@@ -180,7 +181,7 @@
         <input type="checkbox" id="shLiveChk">
         <span>固定链接 · 内容随时更新</span>
       </label>
-      <div class="sh-live-hint" id="shLiveHint">首次创建后，以后改完内容再点一次即可</div>
+      <div class="sh-live-hint" id="shLiveHint">首次创建后，以后每次保存都会自动同步这条链接（对方不用换链接，页面 1~4 秒内自动更新）</div>
     </div>
     <div class="sh-link" id="shLinkBox" hidden></div>
     <div class="sh-gh" id="shGhRow" hidden>
