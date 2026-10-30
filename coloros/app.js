@@ -339,7 +339,7 @@ var GH_BRANCH = 'main';
 
 /* ---------- 固定链接·保存即同步 ----------
    链接恒定：覆盖写同一个 shares/<id>.json。
-   阅读端短轮询（GitHub Pages 无 SSE/WS）→ 作者保存后 1~4 秒内读者页面自动换正文。 */
+   阅读端短轮询（GitHub Pages 无 SSE/WS）→ 作者保存后约 20~30 秒读者页面自动换正文（Pages 重建占大头）。 */
 var liveSig = {};
 var liveTry = {};
 var liveTm = {};
@@ -371,7 +371,7 @@ function syncLive(r) {
       liveSig[id] = sig; liveTry[id] = 0;
       if (liveKick) liveKick(id);
       return NDB.Notes.setLive(r.local_id, id, r.live_pw, r.live_enc).then(function () {
-        toast('已同步到线上 ✓ 打开链接的人几秒内看到新内容');
+        toast('已同步到线上 ✓ 打开链接的人约 20~30 秒后看到新内容');
         return true;
       });
     })['catch'](function (e) {
@@ -410,15 +410,10 @@ function startLiveWatch(id, lastTs) {
   };
   function tick(force) {
     if (stop) return;
-    ghGetShare(id).then(function (enc) {
-      return NF.decode(enc);
-    }).then(function (d) {
+    ghGetShareBest(id, seen).then(function (got) {
+      var d = got && got.d;
       if (!d || d.__enc) return;
       if (typeof d.html !== 'string') return;
-      if (!force) {
-        if (!d.ts) return;
-        if (seen && d.ts <= seen) return;
-      }
       seen = d.ts || seen;
       applyLive(d);
     })['catch'](function () {})
@@ -521,6 +516,47 @@ function fetchJsonTimeout(url, ms) {
    并行竞速下同域兜底通常 <1s 先到，慢源直接忽略。
    第 3 源是站点自身（与页面同域，国内可达）；页面在 /note/coloros/，
    文件在仓库根 shares/ → 相对路径必须是 ../shares/。 */
+/* 多源取最新：shares 里只有 {e: 编码串}，文档 ts 藏在编码串内，必须逐个解码后比较。
+   实测 2026-10-30：覆盖写同一文件后，raw.githubusercontent 0.7s 就应答但长期仍是旧副本
+   （带 ?_=<毫秒> 也不刷新），cdn.jsdelivr 更久；本站同域副本约 20~25s 换新（Pages 重建）。
+   所以「先到先得」会一直读到旧内容 —— 改为收齐应答、取 ts 最大且比已知版本新的一份。 */
+function shareUrls(id) {
+  var bust = Date.now();
+  return [
+    'https://raw.githubusercontent.com/' + GH_REPO + '/' + GH_BRANCH + '/shares/' + id + '.json?_=' + bust,
+    'https://cdn.jsdelivr.net/gh/' + GH_REPO + '@' + GH_BRANCH + '/shares/' + id + '.json?_=' + bust,
+    '../shares/' + id + '.json?_=' + bust
+  ];
+}
+
+function ghGetShareBest(id, knownTs) {
+  var want = knownTs || 0;
+  return Promise.all(shareUrls(id).map(function (u) {
+    return fetchJsonTimeout(u, 8000).then(function (j) {
+      return (j && j.e) ? j.e : null;
+    })['catch'](function () { return null; });
+  })).then(function (list) {
+    var encs = list.filter(Boolean);
+    if (!encs.length) throw new Error('分享内容读取失败');
+    return Promise.all(encs.map(function (enc) {
+      return NF.decode(enc).then(function (d) { return { enc: enc, d: d }; })['catch'](function () { return null; });
+    })).then(function (out) {
+      var best = null, locked = null;
+      out.forEach(function (it) {
+        if (!it || !it.d) return;
+        if (it.d.__enc) { if (!locked) locked = it; return; }
+        if (typeof it.d.html !== 'string') return;
+        if (!best || (it.d.ts || 0) > (best.d.ts || 0)) best = it;
+      });
+      if (best) {
+        if (want && (best.d.ts || 0) <= want) return null;
+        return best;
+      }
+      return locked;
+    });
+  });
+}
+
 function ghGetShare(id) {
   /* 固定链接会覆盖同名文件，而 CDN 按 URL 缓存 —— 必须加 cache-bust 参数，
      否则「更新」后读到的是 CDN 旧副本 */
@@ -781,8 +817,9 @@ $('readCopyBtn').onclick = function () { copyText(location.href); };
     $('readMeta').textContent = '来自分享';
     $('readPaper').innerHTML = '';
     try {
-      var enc = await ghGetShare(sid);
-      var d = await NF.decode(enc);
+      var best0 = await ghGetShareBest(sid, 0);
+      var enc = best0.enc;
+      var d = best0.d;
       if (d && d.__enc) {
         readBuf = d.__enc;
         $('readTitle').textContent = '🔒 这篇便签已加密';
