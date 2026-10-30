@@ -127,9 +127,12 @@ function saveCurrent(silent) {
   r.title = $('titleInput').value.trim();
   r.raw_text = state.editor.getHTML();
   r.color = state.editor.getColor();
+  r.text = NDB.toText(r.raw_text);
   NDB.Notes.update(r).then(function () {
     if (!silent) { toast('已保存'); }
     $('editMeta').textContent = '更新于 ' + fmt(r.update_time);
+    /* 已发布过固定链接：保存即同步线上，链接不变 */
+    scheduleLiveSync(r);
   });
 }
 
@@ -334,6 +337,106 @@ $('bkFile').onchange = function () {
 var GH_REPO = 'wanxian11/note';
 var GH_BRANCH = 'main';
 
+/* ---------- 固定链接·保存即同步 ----------
+   链接恒定：覆盖写同一个 shares/<id>.json。
+   阅读端短轮询（GitHub Pages 无 SSE/WS）→ 作者保存后 1~4 秒内读者页面自动换正文。 */
+var liveSig = {};
+var liveTry = {};
+var liveTm = {};
+var liveKick = null;
+
+function sigOf(r) { return JSON.stringify([r.title || '', r.raw_text || '']); }
+
+function livePayload(r) {
+  return { v: 1, title: r.title || '', html: r.raw_text || ('<p>' + esc(r.text) + '</p>'), ts: Date.now() };
+}
+
+function scheduleLiveSync(r) {
+  if (!r || !r.live_id) return;
+  var id = r.live_id;
+  clearTimeout(liveTm[id]);
+  liveTm[id] = setTimeout(function () { syncLive(r); }, 1000);
+}
+
+function syncLive(r) {
+  var id = r && r.live_id, token = ghToken();
+  if (!id || !token) return Promise.resolve(false);
+  var sig = sigOf(r);
+  if (liveSig[id] === sig) return Promise.resolve(false);
+  return (r.live_pw ? NF.encodeEncrypted(livePayload(r), r.live_pw) : NF.encode(livePayload(r)))
+    .then(function (enc) {
+      return ghShareSha(id, token).then(function (sha) { return ghPutShare(id, enc, token, sha); });
+    })
+    .then(function () {
+      liveSig[id] = sig; liveTry[id] = 0;
+      if (liveKick) liveKick(id);
+      return NDB.Notes.setLive(r.local_id, id, r.live_pw, r.live_enc).then(function () {
+        toast('已同步到线上 ✓ 打开链接的人几秒内看到新内容');
+        return true;
+      });
+    })['catch'](function (e) {
+      liveTry[id] = (liveTry[id] || 0) + 1;
+      if (liveTry[id] > 3) { toast('同步失败：' + String((e && e.message) || e).slice(0, 28)); return false; }
+      return new Promise(function (res) { setTimeout(res, 2000 * liveTry[id]); })
+        .then(function () { return syncLive(r); });
+    });
+}
+
+var liveWatch = null;
+
+function applyLive(d) {
+  var y = window.pageYOffset || document.documentElement.scrollTop || 0;
+  var paper = $('readPaper');
+  if (paper && paper.animate) {
+    try { paper.animate([{ opacity: .35 }, { opacity: 1 }], { duration: 520, easing: 'ease-out' }); } catch (e) {}
+  }
+  $('readTitle').textContent = d.title || '';
+  $('readMeta').textContent = fmt(d.ts || Date.now()) + ' · 来自分享 · 已自动更新';
+  paper.innerHTML = NF.sanitize(d.html || '');
+  document.title = (d.title || '便签') + ' · 来自分享';
+  window.scrollTo(0, y);
+  var badge = $('readLive');
+  if (badge) badge.textContent = '● 实时同步';
+}
+
+function startLiveWatch(id, lastTs) {
+  var stop = false, tm = null, seen = lastTs || 0;
+  var badge = $('readLive');
+  if (badge) badge.hidden = false;
+  var prevKick = liveKick;
+  liveKick = function (changed) {
+    if (prevKick) prevKick(changed);
+    if (changed === id && !stop) { clearTimeout(tm); tick(true); }
+  };
+  function tick(force) {
+    if (stop) return;
+    ghGetShare(id).then(function (enc) {
+      return NF.decode(enc);
+    }).then(function (d) {
+      if (!d || d.__enc) return;
+      if (typeof d.html !== 'string') return;
+      if (!force) {
+        if (!d.ts) return;
+        if (seen && d.ts <= seen) return;
+      }
+      seen = d.ts || seen;
+      applyLive(d);
+    })['catch'](function () {})
+      ['then'](function () {
+        if (stop) return;
+        tm = setTimeout(function () { tick(false); }, document.hidden ? 15000 : 3000);
+      });
+  }
+  tick(false);
+  var onVis = function () { if (!document.hidden && !stop) { clearTimeout(tm); tick(true); } };
+  document.addEventListener('visibilitychange', onVis);
+  return function () {
+    stop = true; clearTimeout(tm);
+    document.removeEventListener('visibilitychange', onVis);
+    if (badge) badge.hidden = true;
+  };
+}
+
 function ghToken() {
   try { return localStorage.getItem('nf.gh.token') || ''; } catch (e) { return ''; }
 }
@@ -478,9 +581,17 @@ function shareLink(pw, live) {
         : Promise.resolve(undefined);
       return shaP.then(function (sha) {
         return ghPutShare(id, enc, token, sha).then(function () {
-          if (live && r.live_id !== id) {
-            r.live_id = id; /* 同步内存对象：state.current 与库行是同一引用语义，下次分享直接复用 */
-            return NDB.Notes.setLive(r.local_id, id).then(function () { return id; });
+          if (live) {
+            /* 记住 id / 查看密码 / 是否加密：「保存即同步」靠这三样重写同一个 shares 文件 */
+            r.live_pw = pw || '';
+            r.live_enc = !!pw;
+            var firstTime = r.live_id !== id;
+            r.live_id = id;
+            var sig = sigOf(r);
+            if (firstTime || liveSig[id] !== sig) {
+              liveSig[id] = sig;
+              return NDB.Notes.setLive(r.local_id, id, r.live_pw, r.live_enc).then(function () { return id; });
+            }
           }
           return id;
         });
@@ -681,6 +792,7 @@ $('readCopyBtn').onclick = function () { copyText(location.href); };
         return;
       }
       await openShared(d.html, d.title, d.ts, false);
+      liveWatch = startLiveWatch(sid, d.ts);
     } catch (e) {
       $('readTitle').textContent = '打不开这条分享';
       $('readMeta').textContent = '';
