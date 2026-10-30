@@ -351,6 +351,15 @@ function livePayload(r) {
   return { v: 1, title: r.title || '', html: r.raw_text || ('<p>' + esc(r.text) + '</p>'), ts: Date.now() };
 }
 
+/* jsDelivr 主动刷新：公开仓库可用 purge 端点，让 CDN 立刻丢弃旧副本。
+   读者端「取最新」因此能在一次 3 秒轮询内命中新内容，不必等 Pages 重建（约 20~30s）。 */
+function purgeJsDelivr(id) {
+  try {
+    fetch('https://purge.jsdelivr.net/gh/' + GH_REPO + '@' + GH_BRANCH + '/shares/' + id + '.json',
+      { cache: 'no-store' })['catch'](function () {});
+  } catch (e) {}
+}
+
 function scheduleLiveSync(r) {
   if (!r || !r.live_id) return;
   var id = r.live_id;
@@ -369,9 +378,10 @@ function syncLive(r) {
     })
     .then(function () {
       liveSig[id] = sig; liveTry[id] = 0;
+      purgeJsDelivr(id);
       if (liveKick) liveKick(id);
       return NDB.Notes.setLive(r.local_id, id, r.live_pw, r.live_enc).then(function () {
-        toast('已同步到线上 ✓ 打开链接的人约 20~30 秒后看到新内容');
+        toast('已同步到线上 ✓ 打开链接的人通常几秒内、最慢约 20 秒看到新内容');
         return true;
       });
     })['catch'](function (e) {
