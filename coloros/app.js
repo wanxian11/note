@@ -508,7 +508,7 @@ function fetchJsonTimeout(url, ms) {
   return new Promise(function (res, rej) {
     var settled = false;
     var tm = setTimeout(function () { settled = true; rej(new Error('timeout')); }, ms);
-    fetch(url).then(function (r) {
+    fetch(url, { cache: 'no-store' }).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();
     }).then(function (j) {
@@ -539,30 +539,42 @@ function shareUrls(id) {
   ];
 }
 
+/* 多源读取：首次打开收齐三源取 ts 最大的一份；实时轮询时任一源给出更新内容就立刻返回，
+   不再被raw.githubusercontent 这类挂起 8 秒才超时的源拖住整个轮询周期。 */
 function ghGetShareBest(id, knownTs) {
   var want = knownTs || 0;
-  return Promise.all(shareUrls(id).map(function (u) {
-    return fetchJsonTimeout(u, 8000).then(function (j) {
-      return (j && j.e) ? j.e : null;
+  var jobs = shareUrls(id).map(function (u) {
+    return fetchJsonTimeout(u, 4000).then(function (j) {
+      if (!j || !j.e) return null;
+      return NF.decode(j.e).then(function (d) { return { enc: j.e, d: d }; })['catch'](function () { return null; });
     })['catch'](function () { return null; });
-  })).then(function (list) {
-    var encs = list.filter(Boolean);
-    if (!encs.length) throw new Error('分享内容读取失败');
-    return Promise.all(encs.map(function (enc) {
-      return NF.decode(enc).then(function (d) { return { enc: enc, d: d }; })['catch'](function () { return null; });
-    })).then(function (out) {
+  });
+  function usable(it) {
+    return !!(it && it.d && !it.d.__enc && typeof it.d.html === 'string');
+  }
+  if (!want) {
+    return Promise.all(jobs).then(function (list) {
       var best = null, locked = null;
-      out.forEach(function (it) {
+      list.forEach(function (it) {
         if (!it || !it.d) return;
         if (it.d.__enc) { if (!locked) locked = it; return; }
-        if (typeof it.d.html !== 'string') return;
+        if (!usable(it)) return;
         if (!best || (it.d.ts || 0) > (best.d.ts || 0)) best = it;
       });
-      if (best) {
-        if (want && (best.d.ts || 0) <= want) return null;
-        return best;
-      }
-      return locked;
+      if (best) return best;
+      if (locked) return locked;
+      throw new Error('分享内容读取失败');
+    });
+  }
+  return new Promise(function (resolve) {
+    var done = false, pending = jobs.length;
+    function finish(v) { if (!done) { done = true; resolve(v); } }
+    jobs.forEach(function (p) {
+      p.then(function (it) {
+        if (done) return;
+        if (usable(it) && (it.d.ts || 0) > want) return finish(it);
+        if (--pending === 0) finish(null);
+      });
     });
   });
 }
