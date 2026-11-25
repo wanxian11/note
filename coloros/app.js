@@ -473,6 +473,7 @@ function ghPutShare(id, enc, token, sha) {
   if (sha) body.sha = sha;
   return fetch('https://api.github.com/repos/' + GH_REPO + '/contents/shares/' + id + '.json', {
     method: 'PUT',
+    cache: 'no-store',
     headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json' },
     body: JSON.stringify(body)
   }).then(function (r) {
@@ -497,7 +498,10 @@ function ghPutShare(id, enc, token, sha) {
 }
 /* 查已有分享文件的 sha（覆盖写的前置条件）；不存在返回 null */
 function ghShareSha(id, token) {
-  return fetch('https://api.github.com/repos/' + GH_REPO + '/contents/shares/' + id + '.json?ref=' + GH_BRANCH, {
+  /* GitHub 的内容接口带 Cache-Control: max-age=60，浏览器会缓存 GET；
+     覆盖写之后再读 sha 就会拿到旧值 → PUT 409。必须 bust + no-store。 */
+  return fetch('https://api.github.com/repos/' + GH_REPO + '/contents/shares/' + id + '.json?ref=' + GH_BRANCH + '&_=' + Date.now(), {
+    cache: 'no-store',
     headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json' }
   }).then(function (r) {
     return r.ok ? r.json() : null;
@@ -689,7 +693,7 @@ function adoptLink() {
     $('shLinkBox').hidden = false;
     $('shLinkBox').textContent = full;
     copyText(full);
-    toast('已绑定，链接不变，以后保存会自动同步 ✓');
+    setTimeout(function () { toast('已绑定，链接不变，以后保存会自动同步 ✓'); }, 400);
   })['catch'](function (e) {
     toast('绑定失败：' + String((e && e.message) || e).slice(0, 26));
   })['then'](function () {
