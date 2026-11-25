@@ -664,6 +664,53 @@ function shareLink(pw, live) {
   })['catch'](function (e) { toast('生成失败：' + e.message); });
 }
 
+/* 把已经发出去的「静态快照」短链升级成固定链接：链接不变，之后每次保存覆盖同一个文件 */
+function adoptLink() {
+  var r = state.current, t = ghToken();
+  if (!r || !t) { toast('先在下方粘贴 GitHub 令牌'); return; }
+  var rawv = ($('shAdoptInput').value || '').trim();
+  var m = rawv.match(/#s=([A-Za-z0-9]+)/) || rawv.match(/([A-Za-z0-9]{6,})/);
+  if (!m) { toast('没认出链接里的 ID'); return; }
+  var id = m[1], btn = this;
+  btn.disabled = true; btn.textContent = '绑定中…';
+  var encP = r.live_pw ? NF.encodeEncrypted(livePayload(r), r.live_pw) : NF.encode(livePayload(r));
+  encP.then(function (enc) {
+    return ghShareSha(id, t).then(function (sha) {
+      if (!sha) throw new Error('这条链接不存在');
+      return ghPutShare(id, enc, t, sha);
+    });
+  }).then(function () {
+    r.live_id = id;
+    liveSig[id] = sigOf(r);
+    return NDB.Notes.setLive(r.local_id, id, r.live_pw, r.live_enc);
+  }).then(function () {
+    purgeJsDelivr(id);
+    var full = NF.base().replace(/index\.html$/, '') + '#s=' + id;
+    $('shLinkBox').hidden = false;
+    $('shLinkBox').textContent = full;
+    copyText(full);
+    toast('已绑定，链接不变，以后保存会自动同步 ✓');
+  })['catch'](function (e) {
+    toast('绑定失败：' + String((e && e.message) || e).slice(0, 26));
+  })['then'](function () {
+    btn.disabled = false; btn.textContent = '绑定';
+  });
+}
+
+function ensureAdoptRow() {
+  if (document.getElementById('shAdoptRow')) return;
+  var box = $('shLinkBox');
+  var div = document.createElement('div');
+  div.className = 'sh-live';
+  div.id = 'shAdoptRow';
+  div.hidden = true;
+  div.innerHTML = '<label class="sh-live-label"><span>已有链接？粘贴后升级为自动更新</span></label>'
+    + '<div class="sh-pw"><input id="shAdoptInput" placeholder="粘贴 #s=… 链接或 11 位 ID" aria-label="已有分享链接"><button id="shAdoptGo">绑定</button></div>'
+    + '<div class="sh-live-hint">链接不变，只把「静态快照」升级成每次保存自动同步。</div>';
+  box.parentNode.insertBefore(div, box.nextSibling);
+  $('shAdoptGo').onclick = adoptLink;
+}
+
 function showShareLink(link, pw, isShort, live) {
   var box = $('shLinkBox');
   var loopback = /^https?:\/\/(127\.0\.0\.1|localhost)/.test(link);
@@ -672,8 +719,17 @@ function showShareLink(link, pw, isShort, live) {
   copyText(link);
   var w2 = document.getElementById('loopWarn');
   if (w2) w2.remove();
+  var h2 = document.getElementById('staticHint');
+  if (h2) h2.remove();
   /* 没有令牌时引导设置（短链需要一次性授权） */
   $('shGhRow').hidden = !!ghToken();
+  if (isShort && !live && !loopback) {
+    var hint = document.createElement('div');
+    hint.id = 'staticHint';
+    hint.style.cssText = 'margin:8px 0 0;padding:9px 12px;border-radius:8px;background:#FBF6EC;border:1px solid #E8D9BC;color:#7A5A2E;font-size:12px;line-height:1.6';
+    hint.textContent = '这是静态快照：之后修改笔记不会更新它。要随编辑自动更新，勾选上方「固定链接」重新发布；或在下方粘贴这条链接，直接升级为自动更新。';
+    box.parentNode.insertBefore(hint, box.nextSibling);
+  }
   if (loopback) {
     var warn = document.createElement('div');
     warn.id = 'loopWarn';
@@ -683,7 +739,7 @@ function showShareLink(link, pw, isShort, live) {
   } else if (live) {
     toast('固定链接已复制 ✓ 以后改完内容再点一次「更新」，这条链接就一直有效');
   } else if (isShort) {
-    toast('短链接已复制（' + link.length + ' 字符），直接发就行 ✓');
+    toast('静态快照已复制（' + link.length + ' 字符）· 不会随编辑更新');
   } else {
     var kb = (link.length / 1024).toFixed(1);
     toast('链接已复制（' + kb + ' KB）' + (pw ? ' · 需密码查看' : ''));
@@ -711,9 +767,18 @@ $('ghSave').onclick = function () {
   });
 };
 $('shLink').onclick = function () {
+  var hasToken = !!ghToken();
   $('shPwRow').hidden = false;
   /* 固定链接要往仓库写内容，未授权时不可勾选 */
-  $('shLiveRow').hidden = !ghToken();
+  $('shLiveRow').hidden = !hasToken;
+  ensureAdoptRow();
+  var ar = document.getElementById('shAdoptRow');
+  if (ar) ar.hidden = !hasToken;
+  /* 有令牌时默认勾选固定链接：不勾就会生成「静态快照」，之后编辑永远不同步 */
+  if (hasToken) {
+    var cb = $('shLiveChk');
+    if (cb) { cb.checked = true; $('shPwGo').textContent = '发布'; }
+  }
   $('shPwInput').focus();
 };
 /* 勾选固定链接 → 按钮文案变「更新」，动作含义即时可见 */
